@@ -5,8 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"strconv"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -21,6 +20,12 @@ type Claims struct {
 	Username string `json:"username"`
 	jwt.RegisteredClaims
 }
+
+var loginAttempts = make(map[string]struct {
+	count       int
+	lastAttempt time.Time
+})
+var loginMutex sync.RWMutex
 
 // validatePassword checks if the password meets the minimum requirements.
 func validatePassword(password string) error {
@@ -105,6 +110,17 @@ func LoginHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 
+	username := req.Username
+
+	loginMutex.Lock()
+	if attempts, exists := loginAttempts[username]; exists {
+		if attempts.count >= 5 && time.Since(attempts.lastAttempt) < 15*time.Minute {
+			loginMutex.Unlock()
+			return c.JSON(http.StatusTooManyRequests, echo.Map{"error": "Too many login attempts. Please wait 15 minutes."})
+		}
+	}
+	loginMutex.Unlock()
+
 	// Retrieve the admin record from MongoDB.
 	dbName := c.Get("mongodb_database").(string)
 	collection := mongodb.Client.Database(dbName).Collection("admins")
@@ -112,13 +128,15 @@ func LoginHandler(c echo.Context) error {
 	defer cancel()
 
 	var admin models.Admin
-	if err := collection.FindOne(ctx, bson.M{"username": req.Username}).Decode(&admin); err != nil {
-		logger.Warn("Invalid username or password", zap.Error(err), zap.String("username", req.Username))
+	if err := collection.FindOne(ctx, bson.M{"username": username}).Decode(&admin); err != nil {
+		logger.Warn("Invalid username or password", zap.Error(err), zap.String("username", username))
+		updateLoginAttempts(username, false)
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid username or password"})
 	}
 
 	// Verify the provided password.
 	if err := VerifyPassword(admin.Password, req.Password); err != nil {
+		updateLoginAttempts(username, false)
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid username or password"})
 	}
 
@@ -129,8 +147,32 @@ func LoginHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
 	}
 
+	updateLoginAttempts(username, true)
+
 	return c.JSON(http.StatusOK, echo.Map{
 		"token":    token,
 		"username": admin.Username,
 	})
+}
+
+func updateLoginAttempts(username string, success bool) {
+	loginMutex.Lock()
+	defer loginMutex.Unlock()
+
+	if success {
+		delete(loginAttempts, username)
+		return
+	}
+
+	attempts, exists := loginAttempts[username]
+	if !exists {
+		loginAttempts[username] = struct {
+			count       int
+			lastAttempt time.Time
+		}{count: 1, lastAttempt: time.Now()}
+	} else {
+		attempts.count++
+		attempts.lastAttempt = time.Now()
+		loginAttempts[username] = attempts
+	}
 }
