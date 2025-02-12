@@ -158,7 +158,7 @@ func LoginHandler(c echo.Context) error {
 	})
 }
 
-func cleanupLoginAttempts() {
+func CleanupLoginAttempts() {
 	ticker := time.NewTicker(15 * time.Minute)
 	go func() {
 		for range ticker.C {
