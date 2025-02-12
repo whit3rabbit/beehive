@@ -48,9 +48,10 @@ func Connect(uri string) error {
 // Disconnect closes the connection to MongoDB.
 func Disconnect() error {
 	if Client == nil {
-		return nil // or perhaps an error if you require a connection to have been made
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return Client.Disconnect(ctx)
+	err := Client.Disconnect(ctx)
+	return err
 }
