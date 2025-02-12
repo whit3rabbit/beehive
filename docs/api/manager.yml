@@ -1,0 +1,456 @@
+openapi: 3.0.3
+info:
+  title: LLM Manager API
+  version: "1.1.0"
+  description: >
+    API for managing agents, tasks, and agent roles for a secure, cross-platform automation system.
+    All endpoints (except registration) require HMAC-SHA256 signatures and API keys.
+servers:
+  - url: https://manager.example.com/api
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: X-Signature
+
+  schemas:
+    AgentRegistration:
+      type: object
+      description: Schema for agent registration.
+      properties:
+        uuid:
+          type: string
+          description: Unique agent identifier.
+        hostname:
+          type: string
+          description: Device hostname.
+        mac_hash:
+          type: string
+          description: SHA256 hash of MAC address.
+        nickname:
+          type: string
+          description: Human-friendly name.
+        role:
+          type: string
+          description: The role assigned to the agent (e.g., web_browsing, finance_excel).
+      required:
+        - uuid
+        - hostname
+        - mac_hash
+        - nickname
+    AgentRegistrationResponse:
+      type: object
+      properties:
+        api_key:
+          type: string
+          description: Agent secret key.
+        status:
+          type: string
+          enum:
+            - registered
+        timestamp:
+          type: string
+          format: date-time
+
+    TaskCreation:
+      type: object
+      description: Schema for creating a task.
+      properties:
+        task:
+          type: object
+          properties:
+            task_id:
+              type: string
+              description: Unique task identifier.
+            agent_id:
+              type: string
+              description: Identifier of the target agent.
+            type:
+              type: string
+              description: Task type.
+              enum:
+                - command_shell
+                - file_operation
+                - ui_automation
+                - browser_automation
+            parameters:
+              type: object
+              description: Task-specific parameters.
+          required:
+            - task_id
+            - agent_id
+            - type
+            - parameters
+      required:
+        - task
+
+    TaskCreationResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - success
+            - failed
+            - cancelled
+        timestamp:
+          type: string
+          format: date-time
+
+    TaskStatus:
+      type: object
+      description: Schema for task status and output.
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - success
+            - failed
+            - cancelled
+        output:
+          type: object
+          properties:
+            logs:
+              type: string
+            error:
+              type: string
+              nullable: true
+
+    AgentHeartbeat:
+      type: object
+      description: Schema for an agent heartbeat.
+      properties:
+        uuid:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - uuid
+        - timestamp
+
+    AgentHeartbeatResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - heartbeat_received
+        timestamp:
+          type: string
+          format: date-time
+
+    TaskCancelResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - cancelled
+        timestamp:
+          type: string
+          format: date-time
+
+    AgentSummary:
+      type: object
+      properties:
+        uuid:
+          type: string
+        nickname:
+          type: string
+        hostname:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+        role:
+          type: string
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        endpoint:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+
+    # New schema: Role
+    Role:
+      type: object
+      description: Schema for defining an agent role.
+      properties:
+        id:
+          type: string
+          description: Unique role identifier.
+        name:
+          type: string
+          description: Name of the role (e.g., web_browsing, finance_excel).
+        description:
+          type: string
+          description: Detailed description of the role.
+        applications:
+          type: array
+          description: List of applications associated with this role.
+          items:
+            type: string
+        default_tasks:
+          type: array
+          description: List of default tasks or task types associated with the role.
+          items:
+            type: string
+      required:
+        - id
+        - name
+
+    RoleCreation:
+      type: object
+      description: Schema for creating a new role.
+      properties:
+        name:
+          type: string
+          description: Name of the role.
+        description:
+          type: string
+          description: Detailed description of the role.
+        applications:
+          type: array
+          description: List of associated applications.
+          items:
+            type: string
+        default_tasks:
+          type: array
+          description: List of default task types for the role.
+          items:
+            type: string
+      required:
+        - name
+
+    RoleResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        applications:
+          type: array
+          items:
+            type: string
+        default_tasks:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /agent/register:
+    post:
+      summary: Register or Update Agent
+      description: Register a new agent or update an existing one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegistration'
+      responses:
+        '200':
+          description: Agent successfully registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRegistrationResponse'
+
+  /task/create:
+    post:
+      summary: Create Task
+      description: Create and assign a task to an agent.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreation'
+      responses:
+        '200':
+          description: Task queued for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCreationResponse'
+
+  /task/status/{task_id}:
+    get:
+      summary: Task Status Check
+      description: Retrieve status and output for a specific task.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: task_id
+          schema:
+            type: string
+          required: true
+          description: Unique identifier for the task.
+      responses:
+        '200':
+          description: Task status and output.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatus'
+
+  /agent/{agent_id}/tasks:
+    get:
+      summary: List Tasks for an Agent
+      description: Retrieve all tasks assigned to a specific agent.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: agent_id
+          schema:
+            type: string
+          required: true
+          description: Unique agent identifier.
+      responses:
+        '200':
+          description: Array of tasks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskStatus'
+
+  /agent/heartbeat:
+    post:
+      summary: Agent Heartbeat
+      description: Update the agent's last seen timestamp.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentHeartbeat'
+      responses:
+        '200':
+          description: Heartbeat acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentHeartbeatResponse'
+
+  /task/cancel/{task_id}:
+    post:
+      summary: Cancel Task
+      description: Cancel a queued or running task.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: task_id
+          schema:
+            type: string
+          required: true
+          description: Unique task identifier.
+      responses:
+        '200':
+          description: Task cancellation confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCancelResponse'
+
+  /roles:
+    get:
+      summary: List All Roles
+      description: Retrieve a list of all defined roles.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Array of roles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+    post:
+      summary: Create a New Role
+      description: Define a new role with associated applications and default tasks.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreation'
+      responses:
+        '201':
+          description: Role created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+  /roles/{role_id}:
+    get:
+      summary: Retrieve Role Details
+      description: Get details of a specific role.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: role_id
+          schema:
+            type: string
+          required: true
+          description: Unique identifier for the role.
+      responses:
+        '200':
+          description: Role details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'

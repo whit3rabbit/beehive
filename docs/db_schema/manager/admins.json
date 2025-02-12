@@ -1,0 +1,29 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["username", "password", "email", "created_at"],
+      "properties": {
+        "username": {
+          "bsonType": "string",
+          "description": "Unique username for the admin account."
+        },
+        "password": {
+          "bsonType": "string",
+          "description": "Hashed password for the admin account."
+        },
+        "email": {
+          "bsonType": "string",
+          "description": "Email address for the admin account."
+        },
+        "created_at": {
+          "bsonType": "date",
+          "description": "Timestamp when the admin account was created."
+        },
+        "updated_at": {
+          "bsonType": "date",
+          "description": "Timestamp when the admin account was last updated."
+        }
+      }
+    }
+  }
+  

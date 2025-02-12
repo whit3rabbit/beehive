@@ -1,0 +1,33 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["uuid", "hostname", "mac_hash", "nickname", "role", "created_at"],
+      "properties": {
+        "uuid": {
+          "bsonType": "string",
+          "description": "Unique agent identifier, required and must be a string."
+        },
+        "hostname": {
+          "bsonType": "string",
+          "description": "Device hostname, required and must be a string."
+        },
+        "mac_hash": {
+          "bsonType": "string",
+          "description": "SHA256 hash of MAC address, required and must be a string."
+        },
+        "nickname": {
+          "bsonType": "string",
+          "description": "Human-friendly name for the agent, required and must be a string."
+        },
+        "role": {
+          "bsonType": "string",
+          "description": "Assigned role for the agent (e.g., web_browsing, finance_excel), required and must be a string."
+        },
+        "created_at": {
+          "bsonType": "date",
+          "description": "Timestamp for when the agent was created, required."
+        }
+      }
+    }
+  }
+  

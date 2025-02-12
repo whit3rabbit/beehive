@@ -1,0 +1,179 @@
+openapi: 3.0.3
+info:
+  title: LLM Agent API
+  version: "1.0.0"
+  description: >
+    API provided by the agent for interacting with the central manager.
+    This includes endpoints for polling tasks, updating task status, and sending heartbeats.
+servers:
+  - url: https://agent.example.com/agent
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: X-Signature
+
+  schemas:
+    Task:
+      type: object
+      description: A task assigned to the agent.
+      properties:
+        task_id:
+          type: string
+          description: Unique identifier for the task.
+        type:
+          type: string
+          description: Task type.
+          enum:
+            - command_shell
+            - file_operation
+            - ui_automation
+            - browser_automation
+        parameters:
+          type: object
+          description: Task-specific parameters.
+      required:
+        - task_id
+        - type
+        - parameters
+
+    TaskPollResponse:
+      type: object
+      description: Response for task polling.
+      properties:
+        task:
+          $ref: '#/components/schemas/Task'
+      required:
+        - task
+
+    TaskUpdateRequest:
+      type: object
+      description: Request schema for updating task status.
+      properties:
+        task_id:
+          type: string
+          description: Unique task identifier.
+        status:
+          type: string
+          description: Updated task status.
+          enum:
+            - success
+            - failure
+        output:
+          type: object
+          description: Task execution results.
+          properties:
+            logs:
+              type: string
+            error:
+              type: string
+              nullable: true
+            screenshots:
+              type: array
+              items:
+                type: string
+      required:
+        - task_id
+        - status
+        - output
+
+    TaskUpdateResponse:
+      type: object
+      description: Response after updating task status.
+      properties:
+        status:
+          type: string
+          description: Acknowledgement of the update.
+          enum:
+            - acknowledged
+
+    AgentHeartbeatRequest:
+      type: object
+      description: Schema for agent heartbeat.
+      properties:
+        uuid:
+          type: string
+          description: Unique identifier for the agent.
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the heartbeat.
+      required:
+        - uuid
+        - timestamp
+
+    AgentHeartbeatResponse:
+      type: object
+      description: Response for a heartbeat request.
+      properties:
+        status:
+          type: string
+          enum:
+            - heartbeat_received
+        timestamp:
+          type: string
+          format: date-time
+
+paths:
+  /task/poll:
+    get:
+      summary: Poll for Task
+      description: >
+        Retrieve the next pending task assigned to this agent.
+        If no task is available, the response may indicate an empty task.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: A task is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPollResponse'
+
+  /task/update:
+    post:
+      summary: Update Task Status
+      description: Send task execution results to the central manager.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdateRequest'
+      responses:
+        '200':
+          description: Task update acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskUpdateResponse'
+
+  /heartbeat:
+    post:
+      summary: Send Heartbeat
+      description: Send a heartbeat signal to confirm the agent is active.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentHeartbeatRequest'
+      responses:
+        '200':
+          description: Heartbeat acknowledged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentHeartbeatResponse'

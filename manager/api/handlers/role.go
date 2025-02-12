@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
-	"manager/models"
-	"manager/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
 
 // ListRoles handles GET /roles.
@@ -68,7 +68,7 @@ func GetRole(c echo.Context) error {
 	defer cancel()
 
 	var role models.Role
-	if err := collection.FindOne(ctx, bson.M{"id": roleID}).Decode(&role); err != nil {
+	if err := collection.FindOne(ctx, bson.M{"_id": roleID}).Decode(&role); err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Role not found"})
 	}
 	return c.JSON(http.StatusOK, role)

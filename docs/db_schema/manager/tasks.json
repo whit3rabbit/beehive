@@ -1,0 +1,43 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["task_id", "agent_id", "type", "parameters", "status", "created_at", "updated_at"],
+      "properties": {
+        "task_id": {
+          "bsonType": "string",
+          "description": "Unique task identifier."
+        },
+        "agent_id": {
+          "bsonType": "string",
+          "description": "Identifier of the target agent."
+        },
+        "type": {
+          "bsonType": "string",
+          "enum": ["command_shell", "file_operation", "ui_automation", "browser_automation"],
+          "description": "Type of task."
+        },
+        "parameters": {
+          "bsonType": "object",
+          "description": "Task-specific parameters (e.g., commands, file paths, etc.)."
+        },
+        "status": {
+          "bsonType": "string",
+          "enum": ["queued", "running", "success", "failed", "cancelled"],
+          "description": "Current status of the task."
+        },
+        "output": {
+          "bsonType": ["object", "null"],
+          "description": "Optional output details including logs, error messages, and screenshots."
+        },
+        "created_at": {
+          "bsonType": "date",
+          "description": "Timestamp when the task was created."
+        },
+        "updated_at": {
+          "bsonType": "date",
+          "description": "Timestamp when the task was last updated."
+        }
+      }
+    }
+  }
+  

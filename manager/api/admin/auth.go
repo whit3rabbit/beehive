@@ -4,17 +4,16 @@ import (
 	"context"
 	"net/http"
 	"time"
+	"os"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 
-	"manager/internal/mongodb"
-	"manager/models"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
 )
-
-var jwtKey = []byte(getEnv("JWT_SECRET", "your_super_secret_jwt_key"))
 
 func getEnv(key, defaultVal string) string {
 	if value, exists := os.LookupEnv(key); exists {
@@ -45,6 +44,7 @@ func VerifyPassword(hashedPassword, password string) error {
 
 // GenerateToken creates a JWT token for the given username with the specified duration.
 func GenerateToken(username string, duration time.Duration) (string, error) {
+	jwtSecret := getEnv("JWT_SECRET", "your_super_secret_jwt_key") // Retrieve each time
 	expirationTime := time.Now().Add(duration)
 	claims := &Claims{
 		Username: username,
@@ -53,14 +53,15 @@ func GenerateToken(username string, duration time.Duration) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString([]byte(jwtSecret))
 }
 
 // ValidateToken parses and validates the JWT token string.
 func ValidateToken(tokenStr string) (*Claims, error) {
+	jwtSecret := getEnv("JWT_SECRET", "your_super_secret_jwt_key") // Retrieve each time
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return []byte(jwtSecret), nil
 	})
 	if err != nil {
 		return nil, err

@@ -9,8 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"manager/models"
-	"manager/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
 
 // RegisterAgent handles POST /agent/register.

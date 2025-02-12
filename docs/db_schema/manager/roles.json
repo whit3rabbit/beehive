@@ -1,0 +1,39 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["id", "name", "created_at"],
+      "properties": {
+        "id": {
+          "bsonType": "string",
+          "description": "Unique role identifier (e.g., 'web_browsing')."
+        },
+        "name": {
+          "bsonType": "string",
+          "description": "Human-readable role name."
+        },
+        "description": {
+          "bsonType": "string",
+          "description": "Detailed description of the role."
+        },
+        "applications": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          },
+          "description": "List of applications associated with this role (e.g., ['Chrome', 'Firefox'])."
+        },
+        "default_tasks": {
+          "bsonType": "array",
+          "items": {
+            "bsonType": "string"
+          },
+          "description": "List of default task types (e.g., ['browser_automation'])."
+        },
+        "created_at": {
+          "bsonType": "date",
+          "description": "Timestamp when the role was created."
+        }
+      }
+    }
+  }
+  

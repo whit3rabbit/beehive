@@ -1,0 +1,29 @@
+{
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["timestamp", "endpoint", "status"],
+      "properties": {
+        "timestamp": {
+          "bsonType": "date",
+          "description": "The time the log was recorded."
+        },
+        "endpoint": {
+          "bsonType": "string",
+          "description": "The API endpoint that was invoked (e.g., '/task/create')."
+        },
+        "agent_id": {
+          "bsonType": "string",
+          "description": "The agent identifier associated with the log entry (if applicable)."
+        },
+        "status": {
+          "bsonType": "string",
+          "description": "The status of the request or task (e.g., 'queued', 'heartbeat_received')."
+        },
+        "details": {
+          "bsonType": "string",
+          "description": "Additional details or error messages for the log entry."
+        }
+      }
+    }
+  }
+  

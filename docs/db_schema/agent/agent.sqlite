@@ -1,0 +1,17 @@
+CREATE TABLE tasks (
+  task_id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  parameters TEXT NOT NULL, -- Store JSON as TEXT
+  status TEXT NOT NULL,
+  output TEXT,              -- Store JSON as TEXT
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  endpoint TEXT NOT NULL,
+  status TEXT NOT NULL,
+  details TEXT
+);

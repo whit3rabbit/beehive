@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"os"
 	"net/http"
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"manager/admin"
+
+	"github.com/whit3rabbit/beehive/manager/api/admin"
 )
 
 // AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header.

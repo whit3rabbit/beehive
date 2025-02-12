@@ -6,20 +6,27 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
 
-	"manager/models"
-	"manager/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
+
+var validate = validator.New()
 
 // CreateTask handles POST /task/create.
 // It accepts a task creation request and inserts a new task.
 func CreateTask(c echo.Context) error {
 	var req struct {
-		Task models.Task `json:"task"`
+		Task models.Task `json:"task" validate:"required"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+	}
+	// Validate the request structure.
+	if err := validate.Struct(req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Validation failed", "details": err.Error()})
 	}
 
 	task := req.Task
@@ -29,6 +36,10 @@ func CreateTask(c echo.Context) error {
 	}
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
+	}
+	// Set default task status if not provided
+	if task.Status == "" {
+		task.Status = "queued"
 	}
 
 	collection := mongodb.Client.Database("manager_db").Collection("tasks")

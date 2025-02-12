@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
-	"manager/models"
 )
 
 // Claims represents the JWT claims structure
@@ -19,10 +18,10 @@ type Claims struct {
 
 // LoginHandler processes admin login requests
 func LoginHandler(username, password string) (string, error) {
-	// In a real application, you would validate against the database
-	// For now, we'll check against environment variables
+	// Instead of separate error messages for username and password,
+	// use a generic error message for both.
 	if username != os.Getenv("ADMIN_DEFAULT_USERNAME") {
-		return "", fmt.Errorf("invalid username")
+		return "", fmt.Errorf("invalid credentials")
 	}
 
 	// Compare password hash
@@ -30,7 +29,7 @@ func LoginHandler(username, password string) (string, error) {
 		[]byte(os.Getenv("ADMIN_DEFAULT_PASSWORD")),
 		[]byte(password),
 	); err != nil {
-		return "", fmt.Errorf("invalid password")
+		return "", fmt.Errorf("invalid credentials")
 	}
 
 	// Create token
