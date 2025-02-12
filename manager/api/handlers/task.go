@@ -37,6 +37,7 @@ func CreateTask(c echo.Context) error {
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
+	// Set default task ID if not provided
 	if task.TaskID == "" {
 		task.TaskID = primitive.NewObjectID().Hex()
 	}
