@@ -8,9 +8,9 @@ import (
 
 type Admin struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Username  string             `json:"username" bson:"username"`
+	Username  string             `json:"username" bson:"username" validate:"required"`
 	Email     string             `json:"email" bson:"email,omitempty"`
-	Password  string             `json:"password" bson:"password"` // store hashed password
+	Password  string             `json:"password" bson:"password" validate:"required"` // store hashed password
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at" bson:"updated_at"`
 }

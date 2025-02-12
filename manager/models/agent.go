@@ -8,9 +8,9 @@ import (
 
 type Agent struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UUID      string             `json:"uuid" bson:"uuid"`
-	Hostname  string             `json:"hostname" bson:"hostname"`
-	MacHash   string             `json:"mac_hash" bson:"mac_hash"`
+	UUID      string             `json:"uuid" bson:"uuid" validate:"required"`
+	Hostname  string             `json:"hostname" bson:"hostname" validate:"required"`
+	MacHash   string             `json:"mac_hash" bson:"mac_hash" validate:"required"`
 	Nickname  string             `json:"nickname" bson:"nickname"`
 	Role      string             `json:"role" bson:"role"`
 	APIKey    string             `json:"-" bson:"api_key"`           // Store API key but don't expose in JSON
