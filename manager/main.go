@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/whit3rabbit/beehive/manager/models"
 	"go.mongodb.org/mongo-driver/bson"
@@ -156,9 +157,12 @@ func main() {
 		}
 	})
 
-	// Global middleware: logging and recovery.
+	// Global middleware: logging, recovery, and timeout.
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.Recover())
+	e.Use(echoMiddleware.TimeoutWithConfig(echoMiddleware.TimeoutConfig{
+		Timeout: 30 * time.Second,
+	}))
 
 	// Public routes (no auth required)
 	e.POST("/admin/login", admin.LoginHandler)
