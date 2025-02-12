@@ -158,11 +158,11 @@ func main() {
 		}
 	}()
 
-	// Start cleanup routine for login attempts
-	admin.CleanupLoginAttempts()
-
 	// Create a new Echo instance
 	e := echo.New()
+
+	// Start cleanup routine for login attempts
+	go admin.CleanupLoginAttempts()
 
 	// Middleware to set config values in context
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
