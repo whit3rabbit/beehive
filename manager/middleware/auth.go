@@ -41,7 +41,8 @@ func AdminAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
 		}
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := admin.ValidateToken(tokenStr)
+		jwtSecret := c.Get("jwt_secret").(string)
+		claims, err := admin.ValidateToken(tokenStr, jwtSecret)
 		if err != nil {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
 		}
