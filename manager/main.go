@@ -16,6 +16,7 @@ import (
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
 	"github.com/whit3rabbit/beehive/manager/api/admin"
+	"github.com/whit3rabbit/beehive/manager/migrations"
 )
 
 type Config struct {
@@ -111,6 +112,22 @@ func main() {
 	// Connect to MongoDB (unchanged)
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
 		log.Fatalf("Error connecting to MongoDB: %v", err)
+	}
+
+	// Run migrations
+	dbURI := os.Getenv("MONGODB_URI")
+	dbName := os.Getenv("MONGODB_DATABASE")
+
+	if dbURI == "" || dbName == "" {
+		log.Fatalf("MONGODB_URI and MONGODB_DATABASE must be set")
+	}
+
+	allMigrations := []migrations.Migration{
+		migrations.Migration0001,
+	}
+
+	if err := migrations.RunMigrations(dbURI, dbName, allMigrations); err != nil {
+		log.Fatalf("Error running migrations: %v", err)
 	}
 
 	// Ensure admin user exists
