@@ -18,4 +18,5 @@ type Agent struct {
 	Status    string             `json:"status" bson:"status"`       // "active", "inactive", "disconnected"
 	LastSeen  time.Time          `json:"last_seen" bson:"last_seen"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
+	BaseModel `json:"base" bson:"base"`
 }

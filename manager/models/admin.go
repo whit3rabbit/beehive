@@ -13,4 +13,5 @@ type Admin struct {
 	Password  string             `json:"password" bson:"password" validate:"required"` // store hashed password
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at" bson:"updated_at"`
+	BaseModel `json:"base" bson:"base"`
 }

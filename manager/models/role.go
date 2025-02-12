@@ -13,4 +13,5 @@ type Role struct {
 	Applications []string             `json:"applications,omitempty" bson:"applications,omitempty"`
 	DefaultTasks []string             `json:"default_tasks,omitempty" bson:"default_tasks,omitempty"`
 	CreatedAt    time.Time          `json:"created_at" bson:"created_at"`
+	BaseModel `json:"base" bson:"base"`
 }
