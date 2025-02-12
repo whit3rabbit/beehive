@@ -1,28 +1,28 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"strconv"
-	"time"
+    "context"
+    "fmt"
+    "net/http"
+    "os"
+    "os/signal"
+    "sync"
+    "time"
 
-	"github.com/whit3rabbit/beehive/manager/models"
-	"go.mongodb.org/mongo-driver/bson"
+    "github.com/joho/godotenv"
+    "github.com/labstack/echo/v4"
+    echoMiddleware "github.com/labstack/echo/v4/middleware"
+    "go.mongodb.org/mongo-driver/bson"
+    "go.uber.org/zap"
+    "gopkg.in/yaml.v3"
 
-	"github.com/joho/godotenv"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
-	"github.com/labstack/echo/v4"
-	echoMiddleware "github.com/labstack/echo/v4/middleware"
-	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
-	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/api/handlers"
-	"github.com/whit3rabbit/beehive/manager/api/admin"
-	"github.com/whit3rabbit/beehive/manager/migrations"
-	"github.com/whit3rabbit/beehive/manager/internal/logger"
+    "github.com/whit3rabbit/beehive/manager/api/admin"
+    "github.com/whit3rabbit/beehive/manager/api/handlers"
+    "github.com/whit3rabbit/beehive/manager/internal/logger"
+    "github.com/whit3rabbit/beehive/manager/internal/mongodb"
+    customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
+    "github.com/whit3rabbit/beehive/manager/migrations"
+    "github.com/whit3rabbit/beehive/manager/models"
 )
 
 type Config struct {
@@ -64,6 +64,29 @@ type HealthStatus struct {
 }
 
 var startTime time.Time
+
+var (
+    loginMutex sync.RWMutex
+    loginAttempts = make(map[string]struct {
+        count       int
+        lastAttempt time.Time
+    })
+)
+
+// CleanupLoginAttempts periodically cleans up expired login attempts
+func CleanupLoginAttempts() {
+    ticker := time.NewTicker(15 * time.Minute)
+    for range ticker.C {
+        loginMutex.Lock()
+        now := time.Now()
+        for username, attempt := range loginAttempts {
+            if now.Sub(attempt.lastAttempt) > 15*time.Minute {
+                delete(loginAttempts, username)
+            }
+        }
+        loginMutex.Unlock()
+    }
+}
 
 func loadConfig(filename string) (*Config, error) {
 	// Load .env first
