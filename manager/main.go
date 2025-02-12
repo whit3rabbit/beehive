@@ -211,6 +211,14 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
 	if config.Server.TLS.Enabled {
+		// Check if TLS cert and key files exist
+		if _, err := os.Stat(config.Server.TLS.CertFile); os.IsNotExist(err) {
+			logger.Fatal("TLS certificate file not found", zap.String("path", config.Server.TLS.CertFile))
+		}
+		if _, err := os.Stat(config.Server.TLS.KeyFile); os.IsNotExist(err) {
+			logger.Fatal("TLS key file not found", zap.String("path", config.Server.TLS.KeyFile))
+		}
+
 		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
 		if err := e.StartTLS(addr, config.Server.TLS.CertFile, config.Server.TLS.KeyFile); err != nil {
 			logger.Fatal("Error starting TLS server", zap.Error(err))
