@@ -112,6 +112,25 @@ func main() {
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
 		log.Fatalf("Error connecting to MongoDB: %v", err)
 	}
+
+	// Ensure admin user exists
+	adminCollection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("admins")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	var adminUser models.Admin
+	if err := adminCollection.FindOne(ctx, bson.M{"username": os.Getenv("ADMIN_DEFAULT_USERNAME")}).Decode(&adminUser); err != nil {
+		hashedPassword, _ := admin.GenerateHashPassword(os.Getenv("ADMIN_DEFAULT_PASSWORD"))
+		_, err = adminCollection.InsertOne(ctx, models.Admin{
+			Username:  os.Getenv("ADMIN_DEFAULT_USERNAME"),
+			Password:  hashedPassword,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		})
+		if err != nil {
+			log.Printf("Failed to create initial admin user: %v", err)
+		}
+	}
 	defer func() {
 		if err := mongodb.Disconnect(); err != nil {
 			log.Printf("Error disconnecting MongoDB: %v", err)

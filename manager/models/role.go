@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Role struct {
-	ID           string    `json:"id" bson:"_id"`
+	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Name         string    `json:"name" bson:"name"`
 	Description  string    `json:"description,omitempty" bson:"description,omitempty"`
 	Applications []string  `json:"applications,omitempty" bson:"applications,omitempty"`
