@@ -92,6 +92,7 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		// Get the request body as a byte slice.
 		bodyBytes, err := io.ReadAll(c.Request().Body)
+		defer c.Request().Body.Close() // Ensure body is closed
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Unable to read request body"})
 		}
