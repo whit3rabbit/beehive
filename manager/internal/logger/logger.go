@@ -2,12 +2,16 @@ package logger
 
 import (
 	"os"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var Log *zap.Logger
+var (
+	logMu sync.RWMutex
+	Log   *zap.Logger
+)
 
 func Initialize(logLevel string) error {
 	level := zap.InfoLevel
@@ -55,6 +59,8 @@ func Initialize(logLevel string) error {
 }
 
 func Sync() error {
+	logMu.RLock()
+	defer logMu.RUnlock()
 	if Log != nil {
 		return Log.Sync()
 	}
@@ -62,8 +68,11 @@ func Sync() error {
 }
 
 func GetLogger() *zap.Logger {
+	logMu.RLock()
+	defer logMu.RUnlock()
 	if Log == nil {
 		// If the logger is not initialized, create a default logger
+		logMu.RUnlock()
 		config := zap.NewProductionConfig()
 		config.OutputPaths = []string{"stdout"}
 		config.ErrorOutputPaths = []string{"stderr"}
@@ -72,6 +81,7 @@ func GetLogger() *zap.Logger {
 		if err != nil {
 			panic("Failed to initialize logger: " + err.Error())
 		}
+		logMu.RLock()
 	}
 	if Log == nil {
 		return zap.NewNop()
