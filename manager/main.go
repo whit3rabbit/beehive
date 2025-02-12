@@ -79,12 +79,18 @@ func main() {
 		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
-	// Ensure required environment variables are set
-	requiredEnvs := []string{"JWT_SECRET", "API_KEY", "API_SECRET", "ADMIN_DEFAULT_PASSWORD"}
-	for _, envVar := range requiredEnvs {
-		if os.Getenv(envVar) == "" {
-			logger.Fatal("Environment variable %s must be set", zap.String("envVar", envVar))
-		}
+	// Ensure required config values are set
+	if config.Auth.JWTSecret == "" {
+		logger.Fatal("JWT_SECRET must be set in configuration")
+	}
+	if config.Auth.APIKey == "" {
+		logger.Fatal("API_KEY must be set in configuration")
+	}
+	if config.Auth.APISecret == "" {
+		logger.Fatal("API_SECRET must be set in configuration")
+	}
+	if config.Admin.DefaultPassword == "" {
+		logger.Fatal("ADMIN_DEFAULT_PASSWORD must be set in configuration")
 	}
 
 	// Initialize Logger
