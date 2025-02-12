@@ -65,28 +65,6 @@ type HealthStatus struct {
 
 var startTime time.Time
 
-var (
-    loginMutex sync.RWMutex
-    loginAttempts = make(map[string]struct {
-        count       int
-        lastAttempt time.Time
-    })
-)
-
-// CleanupLoginAttempts periodically cleans up expired login attempts
-func CleanupLoginAttempts() {
-    ticker := time.NewTicker(15 * time.Minute)
-    for range ticker.C {
-        loginMutex.Lock()
-        now := time.Now()
-        for username, attempt := range loginAttempts {
-            if now.Sub(attempt.lastAttempt) > 15*time.Minute {
-                delete(loginAttempts, username)
-            }
-        }
-        loginMutex.Unlock()
-    }
-}
 
 func loadConfig(filename string) (*Config, error) {
 	// Load .env first
