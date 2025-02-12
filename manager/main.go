@@ -43,6 +43,8 @@ type Config struct {
 	Auth struct {
 		JWTSecret            string `yaml:"jwt_secret"`
 		TokenExpirationHours int    `yaml:"token_expiration_hours"`
+		APIKey               string `yaml:"api_key"`
+		APISecret            string `yaml:"api_secret"`
 	} `yaml:"auth"`
 	Admin struct {
 		DefaultUsername string `yaml:"default_username"`
