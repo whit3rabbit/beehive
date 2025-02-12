@@ -14,8 +14,6 @@ var Migration0001 = Migration{
 	Version:     1,
 	Description: "Create initial collections and indexes",
 	Up: func(db *mongo.Database) error {
-		ctx := context.Background()
-
 		// Create admins collection
 		err := createCollection(db, "admins", nil)
 		if err != nil {
@@ -65,8 +63,6 @@ var Migration0001 = Migration{
 		return nil
 	},
 	Down: func(db *mongo.Database) error {
-		ctx := context.Background()
-
 		// Drop collections (for rollback purposes)
 		err := db.Collection("admins").Drop(ctx)
 		if err != nil {
