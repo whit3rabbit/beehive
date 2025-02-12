@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
