@@ -1,19 +1,23 @@
 package middleware
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"os"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/go-playground/validator/v10"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/whit3rabbit/beehive/manager/api/admin"
 	"github.com/whit3rabbit/beehive/manager/common"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
 )
 
 type Validatable interface {
@@ -53,8 +57,8 @@ func AdminAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 // APIAuthMiddleware validates the X-API-Key and X-Signature headers.
-// It checks that the API key matches an expected value and that the signature,
-// computed as an HMAC-SHA256 of the request body using a secret key, is valid.
+// It checks that the API key exists in the database and that the signature,
+// computed as an HMAC-SHA256 of the request body using the API key as secret, is valid.
 func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		apiKey := c.Request().Header.Get("X-API-Key")
@@ -64,13 +68,23 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing API key or signature"})
 		}
 
-		validAPIKey := c.Get("api_key").(string)
-		apiSecret := []byte(c.Get("api_secret").(string))
-
-		// Verify the API key.
-		if apiKey != validAPIKey {
+		// Get MongoDB database name from context
+		dbName := c.Get("mongodb_database").(string)
+		collection := mongodb.Client.Database(dbName).Collection("agents")
+		
+		// Find agent by API key
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		
+		var agent models.Agent
+		err := collection.FindOne(ctx, bson.M{"api_key": apiKey}).Decode(&agent)
+		if err != nil {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid API key"})
 		}
+
+		// Store agent info in context for downstream handlers
+		c.Set("agent_id", agent.ID.Hex())
+		c.Set("agent_uuid", agent.UUID)
 
 		// Read the request body to compute the HMAC signature.
 		bodyBytes, err := io.ReadAll(c.Request().Body)

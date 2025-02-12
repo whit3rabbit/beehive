@@ -38,8 +38,6 @@ type Config struct {
 	Auth struct {
 		JWTSecret            string `yaml:"jwt_secret"`
 		TokenExpirationHours int    `yaml:"token_expiration_hours"`
-		APIKey               string `yaml:"api_key"`
-		APISecret            string `yaml:"api_secret"`
 	} `yaml:"auth"`
 	Admin struct {
 		DefaultUsername string `yaml:"default_username"`
@@ -81,12 +79,6 @@ func main() {
 	// Ensure required config values are set
 	if config.Auth.JWTSecret == "" {
 		logger.Fatal("JWT_SECRET must be set in configuration")
-	}
-	if config.Auth.APIKey == "" {
-		logger.Fatal("API_KEY must be set in configuration")
-	}
-	if config.Auth.APISecret == "" {
-		logger.Fatal("API_SECRET must be set in configuration")
 	}
 	if config.Admin.DefaultPassword == "" {
 		logger.Fatal("ADMIN_DEFAULT_PASSWORD must be set in configuration")
