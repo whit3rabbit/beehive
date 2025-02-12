@@ -123,10 +123,10 @@ func main() {
 	if err := adminCollection.FindOne(ctx, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser); err != nil {
 		hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword)
 		if err != nil {
-			logger.Fatal("Failed to hash admin password", zap.Error(err))
+			logger.Fatal("Failed to hash default admin password", zap.Error(err))
 		}
 		_, err = adminCollection.InsertOne(ctx, models.Admin{
-			Username:  config.Admin.DefaultUsername,
+			Username: config.Admin.DefaultUsername,
 			Password:  hashedPassword,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),

@@ -22,8 +22,20 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// validatePassword checks if the password meets the minimum requirements.
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters")
+	}
+	// Add more requirements
+	return nil
+}
+
 // GenerateHashPassword hashes the provided plaintext password.
 func GenerateHashPassword(password string) (string, error) {
+	if err := validatePassword(password); err != nil {
+		return "", err
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
@@ -80,6 +92,11 @@ func LoginHandler(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+	}
+
+	// Validate password
+	if err := validatePassword(req.Password); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 
 	// Retrieve the admin record from MongoDB.
