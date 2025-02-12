@@ -31,6 +31,8 @@ type ErrorResponse struct {
 
 	"github.com/whit3rabbit/beehive/manager/models"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"go.uber.org/zap"
 )
 
 // hashAPIKey hashes the provided API key using SHA256.
