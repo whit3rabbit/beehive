@@ -74,6 +74,14 @@ var Migration0001 = Migration{
 			return err
 		}
 
+		// Create TTL index on logs collection
+		ttlIndexKeys := bson.M{"timestamp": 1}
+		ttlIndexOptions := options.Index().SetExpireAfterSeconds(60 * 60 * 24 * 30) // 30 days
+		err = createIndex(db, "logs", ttlIndexKeys, ttlIndexOptions)
+		if err != nil {
+			return err
+		}
+
 		log.Println("Migration 0001 Up executed successfully")
 		return nil
 	},
