@@ -1,6 +1,6 @@
 module github.com/whit3rabbit/beehive/manager
 
-go 1.24.0
+go 1.22.0
 
 require (
 	github.com/go-playground/validator/v10 v10.24.0

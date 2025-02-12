@@ -127,28 +127,29 @@ func main() {
 	// Example: limit to 20 requests per minute per client
 	e.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(20)))
 
-	// Create a group for routes that require authentication
-	protected := e.Group("")
-	protected.Use(customMiddleware.APIAuthMiddleware)
-	protected.Use(customMiddleware.AdminAuthMiddleware)
+	// Admin routes (JWT auth)
+	adminRoutes := e.Group("")
+	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
 
-	// Admin login route (should be accessible without prior auth)
+	// Admin login route (no auth required)
 	e.POST("/admin/login", admin.LoginHandler)
 
-	// Agent endpoints (protected)
-	protected.POST("/agent/register", handlers.RegisterAgent)
-	protected.POST("/agent/heartbeat", handlers.AgentHeartbeat)
-	protected.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
+	// Admin protected routes
+	adminRoutes.GET("/roles", handlers.ListRoles)
+	adminRoutes.POST("/roles", handlers.CreateRole)
+	adminRoutes.GET("/roles/:role_id", handlers.GetRole)
 
-	// Task endpoints (protected)
-	protected.POST("/task/create", handlers.CreateTask)
-	protected.GET("/task/status/:task_id", handlers.GetTaskStatus)
-	protected.POST("/task/cancel/:task_id", handlers.CancelTask)
+	// Agent routes (API key auth)
+	agentRoutes := e.Group("")
+	agentRoutes.Use(customMiddleware.APIAuthMiddleware)
 
-	// Role endpoints (protected)
-	protected.GET("/roles", handlers.ListRoles)
-	protected.POST("/roles", handlers.CreateRole)
-	protected.GET("/roles/:role_id", handlers.GetRole)
+	// Agent endpoints
+	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
+	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
+	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
+	agentRoutes.POST("/task/create", handlers.CreateTask)
+	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
+	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
 
 	// Serve static files for React frontend (if available)
 	if config.Server.StaticDir != "" {

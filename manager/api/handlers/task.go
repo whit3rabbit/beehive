@@ -42,7 +42,7 @@ func CreateTask(c echo.Context) error {
 		task.Status = "queued"
 	}
 
-	collection := mongodb.Client.Database("manager_db").Collection("tasks")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

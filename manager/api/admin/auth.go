@@ -84,7 +84,7 @@ func LoginHandler(c echo.Context) error {
 	}
 
 	// Retrieve the admin record from MongoDB.
-	collection := mongodb.Client.Database("manager_db").Collection("admins")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("admins")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

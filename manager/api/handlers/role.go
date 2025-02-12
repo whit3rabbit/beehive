@@ -16,7 +16,7 @@ import (
 // ListRoles handles GET /roles.
 // It returns all defined roles.
 func ListRoles(c echo.Context) error {
-	collection := mongodb.Client.Database("manager_db").Collection("roles")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

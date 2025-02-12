@@ -26,7 +26,7 @@ func RegisterAgent(c echo.Context) error {
 		agent.CreatedAt = time.Now()
 	}
 
-	collection := mongodb.Client.Database("manager_db").Collection("agents")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("agents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
