@@ -24,7 +24,11 @@ func Connect(uri string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		clientOptions := options.Client().ApplyURI(uri)
+		clientOptions := options.Client().
+			ApplyURI(uri).
+			SetMaxPoolSize(100).
+			SetMinPoolSize(10).
+			SetMaxConnIdleTime(60 * time.Second)
 
 		client, err := mongo.Connect(ctx, clientOptions)
 		if err != nil {
