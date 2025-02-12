@@ -14,7 +14,14 @@ import (
 	"manager/models"
 )
 
-var jwtKey = []byte(os.Getenv("JWT_SECRET"))
+var jwtKey = []byte(getEnv("JWT_SECRET", "your_super_secret_jwt_key"))
+
+func getEnv(key, defaultVal string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultVal
+}
 
 // Claims represents the JWT claims for an admin user.
 type Claims struct {
