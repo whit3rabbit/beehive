@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"go.mongodb.org/mongo-driver/bson"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -63,7 +65,7 @@ func RunMigrations(dbURI, dbName string, migrations []Migration) error {
 	var lastAppliedMigration struct {
 		Version int `bson:"version"`
 	}
-	err = migrationCollection.FindOne(ctx, nil, options.FindOne().SetSort(bson.D{{"version", -1}})).Decode(&lastAppliedMigration)
+	err = migrationCollection.FindOne(ctx, bson.M{}, options.FindOne().SetSort(bson.D{{"version", -1}})).Decode(&lastAppliedMigration)
 	if err != nil && err != mongo.ErrNoDocuments {
 		return fmt.Errorf("failed to get last applied migration: %w", err)
 	}

@@ -115,6 +115,11 @@ func main() {
 	}
 
 	// Run migrations
+	// Ensure MongoDB client is initialized before running migrations
+	if mongodb.Client == nil {
+		log.Fatalf("MongoDB client not initialized")
+	}
+
 	dbURI := os.Getenv("MONGODB_URI")
 	dbName := os.Getenv("MONGODB_DATABASE")
 
