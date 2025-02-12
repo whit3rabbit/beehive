@@ -63,8 +63,8 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing API key or signature"})
 		}
 
-		validAPIKey := os.Getenv("API_KEY")
-		apiSecret := []byte(os.Getenv("API_SECRET"))
+		validAPIKey := c.Get("api_key").(string)
+		apiSecret := []byte(c.Get("api_secret").(string))
 
 		// Verify the API key.
 		if apiKey != validAPIKey {

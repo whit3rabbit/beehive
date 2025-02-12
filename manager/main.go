@@ -72,30 +72,6 @@ func loadConfig(filename string) (*Config, error) {
 	return config, nil
 }
 
-// Helper functions to get environment variables
-func getEnv(key string, defaultVal string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
-	}
-	return defaultVal
-}
-
-func getEnvAsInt(key string, defaultVal int) int {
-	valueStr := getEnv(key, "")
-	if value, err := strconv.Atoi(valueStr); err == nil {
-		return value
-	}
-	return defaultVal
-}
-
-func getEnvAsBool(key string, defaultVal bool) bool {
-	valueStr := getEnv(key, "")
-	if value, err := strconv.ParseBool(valueStr); err == nil {
-		return value
-	}
-	return defaultVal
-}
-
 func main() {
 	// Load configuration
 	config, err := loadConfig("config.yaml")
@@ -139,15 +115,15 @@ func main() {
 	}
 
 	// Ensure admin user exists
-	adminCollection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("admins")
+	adminCollection := mongodb.Client.Database(config.MongoDB.Database).Collection("admins")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var adminUser models.Admin
-	if err := adminCollection.FindOne(ctx, bson.M{"username": os.Getenv("ADMIN_DEFAULT_USERNAME")}).Decode(&adminUser); err != nil {
-		hashedPassword, _ := admin.GenerateHashPassword(os.Getenv("ADMIN_DEFAULT_PASSWORD"))
+	if err := adminCollection.FindOne(ctx, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser); err != nil {
+		hashedPassword, _ := admin.GenerateHashPassword(config.Admin.DefaultPassword)
 		_, err = adminCollection.InsertOne(ctx, models.Admin{
-			Username:  os.Getenv("ADMIN_DEFAULT_USERNAME"),
+			Username:  config.Admin.DefaultUsername,
 			Password:  hashedPassword,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -164,6 +140,18 @@ func main() {
 
 	// Create a new Echo instance
 	e := echo.New()
+
+	// Middleware to set config values in context
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set("jwt_secret", config.Auth.JWTSecret)
+			c.Set("token_expiration_hours", config.Auth.TokenExpirationHours)
+			c.Set("api_key", config.Auth.APIKey)
+			c.Set("api_secret", config.Auth.APISecret)
+			c.Set("mongodb_database", config.MongoDB.Database)
+			return next(c)
+		}
+	})
 
 	// Global middleware: logging, recovery, and rate limiting.
 	e.Use(echoMiddleware.Logger())

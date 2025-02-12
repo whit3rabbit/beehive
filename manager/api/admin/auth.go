@@ -15,17 +15,6 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	"github.com/whit3rabbit/beehive/manager/models"
-)
-
-func getEnvAsInt(key string, defaultVal int) int {
-	if value, exists := os.LookupEnv(key); exists {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultVal
-}
-
 // Claims represents the JWT claims for an admin user.
 type Claims struct {
 	Username string `json:"username"`
@@ -47,14 +36,12 @@ func VerifyPassword(hashedPassword, password string) error {
 }
 
 // GenerateToken creates a JWT token for the given username.
-func GenerateToken(username string) (string, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
+func GenerateToken(username string, jwtSecret string, tokenExpirationHours int) (string, error) {
 	if jwtSecret == "" {
 		return "", fmt.Errorf("JWT_SECRET not configured")
 	}
 
-	expHours := getEnvAsInt("TOKEN_EXPIRATION_HOURS", 24)
-	expirationTime := time.Now().Add(time.Hour * time.Duration(expHours))
+	expirationTime := time.Now().Add(time.Hour * time.Duration(tokenExpirationHours))
 	claims := &Claims{
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -66,8 +53,7 @@ func GenerateToken(username string) (string, error) {
 }
 
 // ValidateToken parses and validates the JWT token string.
-func ValidateToken(tokenStr string) (*Claims, error) {
-	jwtSecret := os.Getenv("JWT_SECRET")
+func ValidateToken(tokenStr string, jwtSecret string) (*Claims, error) {
 	if jwtSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET not configured")
 	}
@@ -111,7 +97,7 @@ func LoginHandler(c echo.Context) error {
 	}
 
 	// Generate a JWT token with configured expiration
-	token, err := GenerateToken(admin.Username)
+	token, err := GenerateToken(admin.Username, c.Get("jwt_secret").(string), c.Get("token_expiration_hours").(int))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
 	}

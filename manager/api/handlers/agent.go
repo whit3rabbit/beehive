@@ -29,7 +29,8 @@ func RegisterAgent(c echo.Context) error {
 		agent.CreatedAt = time.Now()
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("agents")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("agents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -44,7 +45,6 @@ func RegisterAgent(c echo.Context) error {
 	}
 
 	apiKey := generateSecureToken() // Implement secure token generation
-	// Store hashed API key in the database
 
 	response := echo.Map{
 		"api_key":   apiKey,
@@ -64,7 +64,6 @@ func generateSecureToken() string {
 }
 
 // AgentHeartbeat handles POST /agent/heartbeat.
-// It receives heartbeat signals from agents.
 func AgentHeartbeat(c echo.Context) error {
 	var req struct {
 		UUID      string    `json:"uuid"`
@@ -74,8 +73,6 @@ func AgentHeartbeat(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
 
-	// Optionally update the agent's last seen timestamp in the DB.
-
 	response := echo.Map{
 		"status":   "heartbeat_received",
 		"timestamp": time.Now(),
@@ -84,14 +81,14 @@ func AgentHeartbeat(c echo.Context) error {
 }
 
 // ListAgentTasks handles GET /agent/:agent_id/tasks.
-// It returns all tasks assigned to a specific agent.
 func ListAgentTasks(c echo.Context) error {
 	agentID := c.Param("agent_id")
 	if agentID == "" {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing agent ID"})
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
