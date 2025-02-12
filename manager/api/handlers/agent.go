@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
-	"os"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
