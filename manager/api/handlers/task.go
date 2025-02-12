@@ -37,14 +37,12 @@ func CreateTask(c echo.Context) error {
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
-	// Set default task ID if not provided
-	if task.TaskID == "" {
-		task.TaskID = primitive.NewObjectID().Hex()
-	}
 	// Set default task status if not provided
 	if task.Status == "" {
 		task.Status = "queued"
 	}
+
+	task.ID = primitive.NewObjectID()
 
 	var validStatuses = map[string]bool{
 		"queued":    true,
@@ -67,7 +65,7 @@ func CreateTask(c echo.Context) error {
 	}
 
 	response := echo.Map{
-		"task_id":   task.TaskID,
+		"task_id":   task.ID.Hex(),
 		"status":    "queued", // initial status
 		"timestamp": now,
 	}
@@ -86,8 +84,13 @@ func GetTaskStatus(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	objID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task ID format"})
+	}
+
 	var task models.Task
-	if err := collection.FindOne(ctx, bson.M{"task_id": taskID}).Decode(&task); err != nil {
+	if err := collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&task); err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Task not found"})
 	}
 	return c.JSON(http.StatusOK, task)
@@ -105,13 +108,18 @@ func CancelTask(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	objID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task ID format"})
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"status":     "cancelled",
 			"updated_at": time.Now(),
 		},
 	}
-	res, err := collection.UpdateOne(ctx, bson.M{"task_id": taskID}, update)
+	res, err := collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 	if err != nil || res.MatchedCount == 0 {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to cancel task"})
 	}

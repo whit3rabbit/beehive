@@ -33,10 +33,13 @@ func RegisterAgent(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	agent.ID = primitive.NewObjectID()
+
 	filter := bson.M{"uuid": agent.UUID}
 	update := bson.M{"$set": agent}
 	opts := options.Update().SetUpsert(true)
-	if _, err := collection.UpdateOne(ctx, filter, update, opts); err != nil {
+	_, err := collection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register agent"})
 	}
 

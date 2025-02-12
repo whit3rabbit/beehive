@@ -35,7 +35,7 @@ var Migration0001 = Migration{
 		}
 
 		// Create unique index on uuid in agents collection
-		keys = bson.M{"uuid": 1}
+		keys := bson.M{"uuid": 1}
 		err = createIndex(db, "agents", keys, options.Index().SetUnique(true))
 		if err != nil {
 			return err
