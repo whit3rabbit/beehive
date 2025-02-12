@@ -14,8 +14,7 @@ import (
 	"manager/models"
 )
 
-// jwtKey is used for signing tokens. Replace it with a secure key from your configuration.
-var jwtKey = []byte("your_secret_key")
+var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 // Claims represents the JWT claims for an admin user.
 type Claims struct {
