@@ -30,6 +30,12 @@ func CreateTask(c echo.Context) error {
 
 	c.Set("body", req)
 
+	var validTaskTypes = map[string]bool{
+		"scan":    true,
+		"execute": true,
+		// add other valid types
+	}
+
 	task := req.Task
 	now := time.Now()
 	if task.CreatedAt.IsZero() {
@@ -55,6 +61,10 @@ func CreateTask(c echo.Context) error {
 
 	if !validStatuses[task.Status] {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid status"})
+	}
+
+	if !validTaskTypes[task.Type] {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task type"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
