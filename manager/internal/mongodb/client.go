@@ -28,7 +28,9 @@ func Connect(uri string) error {
 			ApplyURI(uri).
 			SetMaxPoolSize(100).
 			SetMinPoolSize(10).
-			SetMaxConnIdleTime(60 * time.Second)
+			SetMaxConnIdleTime(60 * time.Second).
+			SetRetryWrites(true).
+			SetRetryReads(true)
 
 		client, err := mongo.Connect(ctx, clientOptions)
 		if err != nil {
