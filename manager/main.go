@@ -166,9 +166,9 @@ func main() {
 	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
 	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
 	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
-	agentRoutes.POST("/tasks", handlers.CreateTask)
-	agentRoutes.GET("/tasks/:task_id", handlers.GetTaskStatus)
-	agentRoutes.POST("/tasks/:task_id/cancel", handlers.CancelTask)
+	agentRoutes.POST("/task/create", handlers.CreateTask)
+	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
+	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
 
 	// Serve static files for React frontend (if available)
 	if config.Server.StaticDir != "" {
