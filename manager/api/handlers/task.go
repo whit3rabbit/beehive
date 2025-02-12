@@ -13,18 +13,25 @@ import (
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
 
+// taskRequest defines the structure for task creation requests.
+type taskRequest struct {
+	Task models.Task `json:"task" validate:"required"`
+}
+
+// Validate validates the task request.
+func (req taskRequest) Validate() error {
+	return validate.Struct(req)
+}
+
 // CreateTask handles POST /task/create.
 // It accepts a task creation request and inserts a new task.
 func CreateTask(c echo.Context) error {
-	type taskRequest struct {
-		Task models.Task `json:"task" validate:"required"`
-	}
 	var req taskRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
 
-	c.Set("body", &req)
+	c.Set("body", req)
 
 	task := req.Task
 	now := time.Now()
@@ -60,10 +67,12 @@ func CreateTask(c echo.Context) error {
 	}
 
 	response := echo.Map{
-		"task_id":  task.TaskID,
-		"status":   "queued", // initial status
+		"task_id":   task.TaskID,
+		"status":    "queued", // initial status
 		"timestamp": now,
 	}
+	return c.JSON(http.StatusOK, response)
+}
 
 // GetTaskStatus handles GET /task/status/:task_id.
 // It retrieves the status and output for a specific task.
@@ -108,14 +117,9 @@ func CancelTask(c echo.Context) error {
 	}
 
 	response := echo.Map{
-		"task_id":  taskID,
-		"status":   "cancelled",
+		"task_id":   taskID,
+		"status":    "cancelled",
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
-}
-
-// Validate validates the task request.
-func (req *taskRequest) Validate() error {
-	return validate.Struct(req)
 }
