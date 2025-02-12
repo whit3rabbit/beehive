@@ -20,6 +20,8 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
+var validate = validator.New()
+
 type Validatable interface {
 	Validate() error
 }
