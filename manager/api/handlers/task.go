@@ -11,16 +11,12 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/models"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/common"
 )
 
 // taskRequest defines the structure for task creation requests.
 type taskRequest struct {
 	Task models.Task `json:"task" validate:"required"`
-}
-
-// Validate validates the task request.
-func (req taskRequest) Validate() error {
-	return validate.Struct(req)
 }
 
 // CreateTask handles POST /task/create.
