@@ -143,8 +143,22 @@ func LoginHandler(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid username or password"})
 	}
 
+	// Retrieve jwt_secret from context
+	jwtSecret, ok := c.Get("jwt_secret").(string)
+	if !ok {
+		logger.Error("jwt_secret not found in context", zap.String("username", admin.Username))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "jwt_secret not configured"})
+	}
+
+	// Retrieve token_expiration_hours from context
+	tokenExpirationHours, ok := c.Get("token_expiration_hours").(int)
+	if !ok {
+		logger.Error("token_expiration_hours not found in context", zap.String("username", admin.Username))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "token_expiration_hours not configured"})
+	}
+
 	// Generate a JWT token with configured expiration
-	token, err := GenerateToken(admin.Username, c.Get("jwt_secret").(string), c.Get("token_expiration_hours").(int))
+	token, err := GenerateToken(admin.Username, jwtSecret, tokenExpirationHours)
 	if err != nil {
 		logger.Error("Could not generate token", zap.Error(err), zap.String("username", admin.Username))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
