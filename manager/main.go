@@ -149,6 +149,15 @@ func main() {
 	// Public routes (no auth required)
 	e.POST("/admin/login", admin.LoginHandler)
 
+	// Health check endpoint
+	e.GET("/health", func(c echo.Context) error {
+		// Check MongoDB connection
+		if err := mongodb.Client.Ping(context.Background(), nil); err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"status": "unhealthy", "error": "MongoDB connection failed"})
+		}
+		return c.JSON(http.StatusOK, echo.Map{"status": "healthy"})
+	})
+
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
 	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
