@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"net/http"
 	"os"
 	"strconv"
@@ -223,4 +225,16 @@ func main() {
 			logger.Fatal("Error starting server", zap.Error(err))
 		}
 	}
+
+	// Add graceful shutdown handling
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := e.Shutdown(ctx); err != nil {
+			logger.Error("Failed to shutdown server gracefully", zap.Error(err))
+		}
+	}()
 }
