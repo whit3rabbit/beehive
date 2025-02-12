@@ -37,6 +37,9 @@ func CreateTask(c echo.Context) error {
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
+	if task.TaskID == "" {
+		task.TaskID = primitive.NewObjectID().Hex()
+	}
 	// Set default task status if not provided
 	if task.Status == "" {
 		task.Status = "queued"
