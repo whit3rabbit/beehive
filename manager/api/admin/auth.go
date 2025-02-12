@@ -15,9 +15,11 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
-func getEnv(key, defaultVal string) string {
+func getEnvAsInt(key string, defaultVal int) int {
 	if value, exists := os.LookupEnv(key); exists {
-		return value
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
 	}
 	return defaultVal
 }
@@ -42,10 +44,15 @@ func VerifyPassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
-// GenerateToken creates a JWT token for the given username with the specified duration.
-func GenerateToken(username string, duration time.Duration) (string, error) {
-	jwtSecret := getEnv("JWT_SECRET", "your_super_secret_jwt_key") // Retrieve each time
-	expirationTime := time.Now().Add(duration)
+// GenerateToken creates a JWT token for the given username.
+func GenerateToken(username string) (string, error) {
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return "", fmt.Errorf("JWT_SECRET not configured")
+	}
+
+	expHours := getEnvAsInt("TOKEN_EXPIRATION_HOURS", 24)
+	expirationTime := time.Now().Add(time.Hour * time.Duration(expHours))
 	claims := &Claims{
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -58,7 +65,10 @@ func GenerateToken(username string, duration time.Duration) (string, error) {
 
 // ValidateToken parses and validates the JWT token string.
 func ValidateToken(tokenStr string) (*Claims, error) {
-	jwtSecret := getEnv("JWT_SECRET", "your_super_secret_jwt_key") // Retrieve each time
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET not configured")
+	}
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwtSecret), nil
@@ -98,8 +108,8 @@ func LoginHandler(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid username or password"})
 	}
 
-	// Generate a JWT token (e.g., valid for 24 hours).
-	token, err := GenerateToken(admin.Username, 24*time.Hour)
+	// Generate a JWT token with configured expiration
+	token, err := GenerateToken(admin.Username)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
 	}
