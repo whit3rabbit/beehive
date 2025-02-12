@@ -24,12 +24,14 @@ func ListRoles(c echo.Context) error {
 
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
+		logger.Error("Failed to retrieve roles", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to retrieve roles"})
 	}
 	defer cursor.Close(ctx)
 
 	var roles []models.Role
 	if err = cursor.All(ctx, &roles); err != nil {
+		logger.Error("Failed to parse roles", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to parse roles"})
 	}
 	return c.JSON(http.StatusOK, roles)
@@ -53,6 +55,7 @@ func CreateRole(c echo.Context) error {
 	defer cancel()
 
 	if _, err := collection.InsertOne(ctx, role); err != nil {
+		logger.Error("Failed to create role", zap.Error(err), zap.String("role_name", role.Name))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create role"})
 	}
 	return c.JSON(http.StatusCreated, role)
@@ -74,10 +77,12 @@ func GetRole(c echo.Context) error {
 	var role models.Role
 	objID, err := primitive.ObjectIDFromHex(roleID)
 	if err != nil {
+		logger.Error("Invalid role ID format", zap.Error(err), zap.String("role_id", roleID))
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid role ID format"})
 	}
 
 	if err := collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&role); err != nil {
+		logger.Error("Role not found", zap.Error(err), zap.String("role_id", roleID))
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Role not found"})
 	}
 	return c.JSON(http.StatusOK, role)

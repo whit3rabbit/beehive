@@ -73,11 +73,12 @@ func CreateTask(c echo.Context) error {
 	defer cancel()
 
 	if _, err := collection.InsertOne(ctx, task); err != nil {
+		logger.Error("Failed to create task", zap.Error(err), zap.String("task_type", task.Type), zap.String("agent_id", task.AgentID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create task"})
 	}
 
 	response := echo.Map{
-		"task_id":   task.ID.Hex(),
+		"task_id": task.ID.Hex(),
 		"status":    "queued", // initial status
 		"timestamp": now,
 	}
@@ -104,6 +105,7 @@ func GetTaskStatus(c echo.Context) error {
 
 	var task models.Task
 	if err := collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&task); err != nil {
+		logger.Error("Task not found", zap.Error(err), zap.String("task_id", taskID))
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Task not found"})
 	}
 	return c.JSON(http.StatusOK, task)
@@ -135,11 +137,12 @@ func CancelTask(c echo.Context) error {
 	}
 	res, err := collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 	if err != nil || res.MatchedCount == 0 {
+		logger.Error("Failed to cancel task", zap.Error(err), zap.String("task_id", taskID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to cancel task"})
 	}
 
 	response := echo.Map{
-		"task_id":   taskID,
+		"task_id": taskID,
 		"status":    "cancelled",
 		"timestamp": time.Now(),
 	}

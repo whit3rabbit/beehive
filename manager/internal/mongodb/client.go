@@ -29,12 +29,14 @@ func Connect(uri string) error {
 		client, err := mongo.Connect(ctx, clientOptions)
 		if err != nil {
 			connectErr = err
+			log.Println("Failed to connect to MongoDB", err)
 			return
 		}
 
 		// Verify connection
 		if err := client.Ping(ctx, nil); err != nil {
 			connectErr = err
+			log.Println("Failed to ping MongoDB", err)
 			return
 		}
 

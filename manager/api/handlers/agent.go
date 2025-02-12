@@ -49,18 +49,21 @@ func RegisterAgent(c echo.Context) error {
 	opts := options.Update().SetUpsert(true)
 	_, err := collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
+		logger.Error("Failed to register agent", zap.Error(err), zap.String("agent_uuid", agent.UUID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register agent"})
 	}
 
 	// Generate and store API key
 	apiKey, err := generateSecureToken()
 	if err != nil {
+		logger.Error("Failed to generate API key", zap.Error(err), zap.String("agent_uuid", agent.UUID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to generate API key"})
 	}
 
 	// Generate and store API secret
 	apiSecret, err := generateSecureToken()
 	if err != nil {
+		logger.Error("Failed to generate API secret", zap.Error(err), zap.String("agent_uuid", agent.UUID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to generate API secret"})
 	}
 
@@ -76,6 +79,7 @@ func RegisterAgent(c echo.Context) error {
 	update = bson.M{"$set": agent}
 	_, err = collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
+		logger.Error("Failed to store API key and secret", zap.Error(err), zap.String("agent_uuid", agent.UUID))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to store API key and secret"})
 	}
 
@@ -92,6 +96,7 @@ func RegisterAgent(c echo.Context) error {
 func generateSecureToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
+		logger.Error("Failed to generate secure token", zap.Error(err))
 		return "", err // Handle error appropriately
 	}
 	return base64.StdEncoding.EncodeToString(b), nil

@@ -38,6 +38,7 @@ func GenerateHashPassword(password string) (string, error) {
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		logger.Error("Failed to hash password", zap.Error(err))
 		return "", err
 	}
 	return string(hash), nil
@@ -45,7 +46,12 @@ func GenerateHashPassword(password string) (string, error) {
 
 // VerifyPassword compares a hashed password with its plaintext version.
 func VerifyPassword(hashedPassword, password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		logger.Warn("Invalid username or password", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 // GenerateToken creates a JWT token for the given username.
@@ -107,6 +113,7 @@ func LoginHandler(c echo.Context) error {
 
 	var admin models.Admin
 	if err := collection.FindOne(ctx, bson.M{"username": req.Username}).Decode(&admin); err != nil {
+		logger.Warn("Invalid username or password", zap.Error(err), zap.String("username", req.Username))
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid username or password"})
 	}
 
@@ -118,6 +125,7 @@ func LoginHandler(c echo.Context) error {
 	// Generate a JWT token with configured expiration
 	token, err := GenerateToken(admin.Username, c.Get("jwt_secret").(string), c.Get("token_expiration_hours").(int))
 	if err != nil {
+		logger.Error("Could not generate token", zap.Error(err), zap.String("username", admin.Username))
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
 	}
 

@@ -32,6 +32,7 @@ func RunMigrations(db *mongo.Database, migrations []Migration) error {
 	// Ensure the migration collection exists
 	names, err := db.ListCollectionNames(ctx, mongo.ListCollectionsOptions{})
 	if err != nil {
+		logger.Error("failed to list collections", zap.Error(err))
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
 	collectionExists := false
@@ -44,6 +45,7 @@ func RunMigrations(db *mongo.Database, migrations []Migration) error {
 	if !collectionExists {
 		err = db.CreateCollection(ctx, migrationCollectionName)
 		if err != nil {
+			logger.Error("failed to create migration collection", zap.Error(err))
 			return fmt.Errorf("failed to create migration collection: %w", err)
 		}
 	}
@@ -54,6 +56,7 @@ func RunMigrations(db *mongo.Database, migrations []Migration) error {
 	}
 	err = migrationCollection.FindOne(ctx, bson.M{}, options.FindOne().SetSort(bson.D{{Key: "version", Value: -1}})).Decode(&lastAppliedMigration)
 	if err != nil && err != mongo.ErrNoDocuments {
+		logger.Error("failed to get last applied migration", zap.Error(err))
 		return fmt.Errorf("failed to get last applied migration: %w", err)
 	}
 
@@ -64,12 +67,14 @@ func RunMigrations(db *mongo.Database, migrations []Migration) error {
 		if migration.Version > lastVersion {
 			log.Printf("Applying migration version %d: %s", migration.Version, migration.Description)
 			if err := migration.Up(db); err != nil {
+				logger.Error("failed to apply migration", zap.Error(err), zap.Int("migration_version", migration.Version))
 				return fmt.Errorf("failed to apply migration version %d: %w", migration.Version, err)
 			}
 
 			// Record the migration
 			_, err = migrationCollection.InsertOne(ctx, bson.M{"version": migration.Version, "description": migration.Description, "applied_at": time.Now()})
 			if err != nil {
+				logger.Error("failed to record migration", zap.Error(err), zap.Int("migration_version", migration.Version))
 				return fmt.Errorf("failed to record migration version %d: %w", migration.Version, err)
 			}
 			log.Printf("Migration version %d applied successfully", migration.Version)
@@ -87,6 +92,7 @@ func createCollection(db *mongo.Database, collectionName string, options *option
 
 	err := db.CreateCollection(ctx, collectionName, options)
 	if err != nil {
+		logger.Error("failed to create collection", zap.Error(err), zap.String("collection_name", collectionName))
 		return fmt.Errorf("failed to create collection %s: %w", collectionName, err)
 	}
 
@@ -107,6 +113,7 @@ func createIndex(db *mongo.Database, collectionName string, keys interface{}, op
 
 	_, err := collection.Indexes().CreateOne(ctx, model)
 	if err != nil {
+		logger.Error("failed to create index", zap.Error(err), zap.String("collection_name", collectionName))
 		return fmt.Errorf("failed to create index on collection %s: %w", collectionName, err)
 	}
 
