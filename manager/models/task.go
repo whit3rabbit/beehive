@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 import (
 	"time"
 
