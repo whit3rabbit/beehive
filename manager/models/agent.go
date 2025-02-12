@@ -15,5 +15,7 @@ type Agent struct {
 	Role      string             `json:"role" bson:"role"`
 	APIKey    string             `json:"-" bson:"api_key"`           // Store API key but don't expose in JSON
 	APISecret string             `json:"-" bson:"api_secret"`        // Store API secret but don't expose in JSON
+	Status    string             `json:"status" bson:"status"`       // "active", "inactive", "disconnected"
+	LastSeen  time.Time          `json:"last_seen" bson:"last_seen"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 }

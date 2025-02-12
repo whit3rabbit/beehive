@@ -39,6 +39,10 @@ func RegisterAgent(c echo.Context) error {
 		agent.CreatedAt = time.Now()
 	}
 
+	// Set initial status to "active"
+	agent.Status = "active"
+	agent.LastSeen = time.Now()
+
 	dbName := c.Get("mongodb_database").(string)
 	collection := mongodb.Client.Database(dbName).Collection("agents")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -105,15 +109,31 @@ func generateSecureToken() (string, error) {
 // AgentHeartbeat handles POST /agent/heartbeat.
 func AgentHeartbeat(c echo.Context) error {
 	var req struct {
-		UUID      string    `json:"uuid"`
-		Timestamp time.Time `json:"timestamp"`
+		UUID string `json:"uuid"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
 
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("agents")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"status":    "active",
+			"last_seen": time.Now(),
+		},
+	}
+	_, err := collection.UpdateOne(ctx, bson.M{"uuid": req.UUID}, update)
+	if err != nil {
+		logger.Error("Failed to update agent heartbeat", zap.Error(err), zap.String("agent_uuid", req.UUID))
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update agent heartbeat"})
+	}
+
 	response := echo.Map{
-		"status":   "heartbeat_received",
+		"status":    "heartbeat_received",
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
