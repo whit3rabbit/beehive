@@ -46,23 +46,26 @@ func RegisterAgent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register agent"})
 	}
 
-	apiKey := generateSecureToken() // Implement secure token generation
+	apiKey, err := generateSecureToken() // Implement secure token generation
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to generate API key"})
+	}
 
 	response := echo.Map{
-		"api_key":   apiKey,
-		"status":    "registered",
+		"api_key": apiKey,
+		"status":  "registered",
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
 
 // generateSecureToken generates a secure random token for API key.
-func generateSecureToken() string {
+func generateSecureToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "" // Handle error appropriately
+		return "", err // Handle error appropriately
 	}
-	return base64.StdEncoding.EncodeToString(b)
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 // AgentHeartbeat handles POST /agent/heartbeat.
