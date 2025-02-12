@@ -12,13 +12,13 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
-	echoMiddleware "github.com/labstack/echo/v4/middleware" // alias for Echo's middleware
-	
-	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware" // alias for your custom middleware
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
 	"github.com/whit3rabbit/beehive/manager/api/admin"
 	"github.com/whit3rabbit/beehive/manager/migrations"
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
 )
 
 type Config struct {
