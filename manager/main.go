@@ -150,10 +150,10 @@ func main() {
 				UpdatedAt: time.Now(),
 			})
 			if err != nil {
-				logger.Error("Failed to create initial admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+				logger.Fatal("Failed to create initial admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
 			}
 		} else {
-			logger.Error("Failed to find admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+			logger.Error("Error checking for admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
 		}
 	}
 	defer func() {
