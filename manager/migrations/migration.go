@@ -64,7 +64,7 @@ func RunMigrations(dbURI, dbName string, migrations []Migration) error {
 	var lastAppliedMigration struct {
 		Version int `bson:"version"`
 	}
-	err = migrationCollection.FindOne(ctx, bson.M{}, options.FindOne().SetSort(bson.D{{"version", -1}})).Decode(&lastAppliedMigration)
+	err = migrationCollection.FindOne(ctx, bson.M{}, options.FindOne().SetSort(bson.D{{Key: "version", Value: -1}})).Decode(&lastAppliedMigration)
 	if err != nil && err != mongo.ErrNoDocuments {
 		return fmt.Errorf("failed to get last applied migration: %w", err)
 	}
