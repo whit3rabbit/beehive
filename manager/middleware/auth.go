@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"manager/internal/admin"
+	"manager/admin"
 )
 
 // AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header.

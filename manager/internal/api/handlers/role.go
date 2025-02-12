@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"manager/models"
-	"manager/internal/mongodb"
+	"manager/mongodb"
 )
 
 // ListRoles handles GET /roles.

@@ -11,10 +11,10 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"gopkg.in/yaml.v2"
 
-	"manager/internal/mongodb"
-	"manager/internal/api/handlers"
-	"manager/internal/admin"
-	customMiddleware "manager/middleware" // our custom middleware package
+	"manager/mongodb"
+	"manager/api/handlers"
+	"manager/admin"
+	"manager/middleware"
 )
 
 type Config struct {

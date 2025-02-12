@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"manager/models"
-	"manager/internal/mongodb"
+	"manager/mongodb"
 )
 
 // CreateTask handles POST /task/create.

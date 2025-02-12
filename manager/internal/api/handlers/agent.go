@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"manager/models"
-	"manager/internal/mongodb"
+	"manager/mongodb"
 )
 
 // RegisterAgent handles POST /agent/register.
