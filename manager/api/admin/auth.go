@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"go.uber.org/zap"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"

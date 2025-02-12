@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"go.uber.org/zap"
+
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
