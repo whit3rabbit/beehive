@@ -46,7 +46,7 @@ func CreateRole(c echo.Context) error {
 	// Generate a unique ID for the role using MongoDB's ObjectID.
 	role.ID = primitive.NewObjectID()
 
-	collection := mongodb.Client.Database("manager_db").Collection("roles")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
