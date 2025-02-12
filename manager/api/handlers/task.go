@@ -56,7 +56,8 @@ func CreateTask(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid status"})
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -80,7 +81,8 @@ func GetTaskStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing task ID"})
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -104,7 +106,8 @@ func CancelTask(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing task ID"})
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

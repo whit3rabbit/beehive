@@ -17,7 +17,8 @@ import (
 // ListRoles handles GET /roles.
 // It returns all defined roles.
 func ListRoles(c echo.Context) error {
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("roles")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -46,7 +47,8 @@ func CreateRole(c echo.Context) error {
 	// Generate a unique ID for the role using MongoDB's ObjectID.
 	role.ID = primitive.NewObjectID()
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("roles")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -64,7 +66,8 @@ func GetRole(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing role ID"})
 	}
 
-	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("roles")
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
