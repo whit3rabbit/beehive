@@ -129,12 +129,22 @@ func generateSecureToken() (string, error) {
 }
 
 // AgentHeartbeat handles POST /agent/heartbeat.
+// @Summary Updates the heartbeat of an agent
+// @Description Updates the last_seen timestamp of an agent.
+// @Tags agent
+// @Accept json
+// @Produce json
+// @Param body body struct{UUID string `json:"uuid"`} true "Agent UUID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /agent/heartbeat [post]
 func AgentHeartbeat(c echo.Context) error {
 	var req struct {
 		UUID string `json:"uuid"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
