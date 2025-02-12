@@ -46,14 +46,25 @@ func RegisterAgent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register agent"})
 	}
 
-	apiKey, err := generateSecureToken() // Implement secure token generation
+	// Generate and store API key
+	apiKey, err := generateSecureToken()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to generate API key"})
+	}
+	
+	// Update agent with API key
+	agent.APIKey = apiKey
+	
+	// Update document with API key
+	update = bson.M{"$set": agent}
+	_, err = collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to store API key"})
 	}
 
 	response := echo.Map{
 		"api_key": apiKey,
-		"status":  "registered",
+		"status": "registered",
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)

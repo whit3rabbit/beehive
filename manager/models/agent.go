@@ -13,5 +13,6 @@ type Agent struct {
 	MacHash   string             `json:"mac_hash" bson:"mac_hash"`
 	Nickname  string             `json:"nickname" bson:"nickname"`
 	Role      string             `json:"role" bson:"role"`
+	APIKey    string             `json:"-" bson:"api_key"`           // Store API key but don't expose in JSON
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 }
