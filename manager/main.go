@@ -128,11 +128,13 @@ func main() {
 		log.Fatalf("MongoDB client not initialized")
 	}
 
+	db := mongodb.Client.Database(config.MongoDB.Database)
+
 	allMigrations := []migrations.Migration{
 		migrations.Migration0001,
 	}
 
-	if err := migrations.RunMigrations(config.MongoDB.URI, config.MongoDB.Database, allMigrations); err != nil {
+	if err := migrations.RunMigrations(db, allMigrations); err != nil {
 		log.Fatalf("Error running migrations: %v", err)
 	}
 

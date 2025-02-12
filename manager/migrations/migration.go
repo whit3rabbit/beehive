@@ -21,21 +21,9 @@ type Migration struct {
 }
 
 // RunMigrations applies the migrations to the database.
-func RunMigrations(dbURI, dbName string, migrations []Migration) error {
+func RunMigrations(db *mongo.Database, migrations []Migration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURI))
-	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
-	}
-	defer func() {
-		if err := client.Disconnect(ctx); err != nil {
-			log.Printf("Error disconnecting from MongoDB: %v", err)
-		}
-	}()
-
-	db := client.Database(dbName)
 
 	// Create a collection to track migrations
 	migrationCollectionName := "migrations"
@@ -90,19 +78,6 @@ func RunMigrations(dbURI, dbName string, migrations []Migration) error {
 
 	log.Println("All migrations applied successfully")
 	return nil
-}
-
-// Define a helper function to get the MongoDB database
-func getDatabase(dbURI, dbName string) (*mongo.Database, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURI))
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
-	}
-
-	return client.Database(dbName), nil
 }
 
 // Define a helper function to create a collection with options
