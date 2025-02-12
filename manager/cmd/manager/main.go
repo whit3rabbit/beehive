@@ -9,7 +9,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"gopkg.in/yaml.v2"
 
 	"manager/mongodb"
 	"manager/api/handlers"
