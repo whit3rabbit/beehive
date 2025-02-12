@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 	"gopkg.in/yaml.v3"
-	"io/ioutil"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -53,7 +53,7 @@ func loadConfig(filename string) (*Config, error) {
 	godotenv.Load()
 
 	// Read YAML file
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %v", err)
 	}
