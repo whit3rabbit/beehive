@@ -42,6 +42,13 @@ var Migration0001 = Migration{
 			return err
 		}
 
+		// Create unique index on api_key in agents collection
+		keys = bson.M{"api_key": 1}
+		err = createIndex(db, "agents", keys, options.Index().SetUnique(true))
+		if err != nil {
+			return err
+		}
+
 		// Create roles collection
 		err = createCollection(db, "roles", nil)
 		if err != nil {
