@@ -156,11 +156,9 @@ func main() {
 		}
 	})
 
-	// Global middleware: logging, recovery, and rate limiting.
+	// Global middleware: logging and recovery.
 	e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.Recover())
-	// Example: limit to 20 requests per minute per client
-	e.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(20)))
 
 	// Public routes (no auth required)
 	e.POST("/admin/login", admin.LoginHandler)
@@ -177,7 +175,8 @@ func main() {
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
 	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
-	
+	adminRoutes.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(5))) // stricter limit for admin routes
+
 	// Admin protected routes
 	adminRoutes.GET("/roles", handlers.ListRoles)
 	adminRoutes.POST("/roles", handlers.CreateRole)
