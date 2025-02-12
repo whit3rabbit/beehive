@@ -127,29 +127,29 @@ func main() {
 	// Example: limit to 20 requests per minute per client
 	e.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(20)))
 
-	// Admin routes (JWT auth)
-	adminRoutes := e.Group("")
-	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
-
-	// Admin login route (no auth required)
+	// Public routes (no auth required)
 	e.POST("/admin/login", admin.LoginHandler)
 
+	// Admin routes (JWT auth)
+	adminRoutes := e.Group("/admin")
+	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
+	
 	// Admin protected routes
 	adminRoutes.GET("/roles", handlers.ListRoles)
 	adminRoutes.POST("/roles", handlers.CreateRole)
 	adminRoutes.GET("/roles/:role_id", handlers.GetRole)
 
 	// Agent routes (API key auth)
-	agentRoutes := e.Group("")
+	agentRoutes := e.Group("/api")
 	agentRoutes.Use(customMiddleware.APIAuthMiddleware)
 
 	// Agent endpoints
 	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
 	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
 	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
-	agentRoutes.POST("/task/create", handlers.CreateTask)
-	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
-	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
+	agentRoutes.POST("/tasks", handlers.CreateTask)
+	agentRoutes.GET("/tasks/:task_id", handlers.GetTaskStatus)
+	agentRoutes.POST("/tasks/:task_id/cancel", handlers.CancelTask)
 
 	// Serve static files for React frontend (if available)
 	if config.Server.StaticDir != "" {
