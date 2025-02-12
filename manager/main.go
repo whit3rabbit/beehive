@@ -7,9 +7,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"os"
 	"strconv"
-	"gopkg.in/yaml.v3"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
