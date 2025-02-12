@@ -36,15 +36,15 @@ var Migration0001 = Migration{
 		}
 
 		// Create unique index on uuid in agents collection
-		keys := bson.M{"uuid": 1}
-		err = createIndex(db, "agents", keys, options.Index().SetUnique(true))
+		uuidKeys := bson.M{"uuid": 1}
+		err = createIndex(db, "agents", uuidKeys, options.Index().SetUnique(true))
 		if err != nil {
 			return err
 		}
 
 		// Create unique index on api_key in agents collection
-		keys = bson.M{"api_key": 1}
-		err = createIndex(db, "agents", keys, options.Index().SetUnique(true))
+		apiKeys := bson.M{"api_key": 1}
+		err = createIndex(db, "agents", apiKeys, options.Index().SetUnique(true))
 		if err != nil {
 			return err
 		}
