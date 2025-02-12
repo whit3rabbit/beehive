@@ -24,11 +24,11 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+var loginMutex sync.RWMutex
 var loginAttempts = make(map[string]struct {
 	count       int
 	lastAttempt time.Time
 })
-var loginMutex sync.RWMutex
 
 // validatePassword checks if the password meets the minimum requirements.
 func validatePassword(password string) error {
@@ -193,5 +193,21 @@ func updateLoginAttempts(username string, success bool) {
 		attempts.count++
 		attempts.lastAttempt = time.Now()
 		loginAttempts[username] = attempts
-	}
+}
+
+// CleanupLoginAttempts periodically cleans up expired login attempts
+func CleanupLoginAttempts() {
+	ticker := time.NewTicker(15 * time.Minute)
+	go func() {
+		for range ticker.C {
+			loginMutex.Lock()
+			now := time.Now()
+			for username, attempt := range loginAttempts {
+				if now.Sub(attempt.lastAttempt) > 15*time.Minute {
+					delete(loginAttempts, username)
+				}
+			}
+			loginMutex.Unlock()
+		}
+	}()
 }
