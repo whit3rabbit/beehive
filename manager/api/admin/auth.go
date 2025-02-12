@@ -18,7 +18,7 @@ import (
 
 type Claims struct {
 	Username string `json:"username"`
-	RegisteredClaims jwt.RegisteredClaims `json:"registered_claims"`
+	jwt.RegisteredClaims
 }
 
 var loginAttempts = make(map[string]struct {
