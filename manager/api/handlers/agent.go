@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"net/http"
 	"os"
 	"time"
@@ -17,6 +19,12 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
+
+// hashAPIKey hashes the provided API key using SHA256.
+func hashAPIKey(key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(hash[:])
+}
 
 // RegisterAgent handles POST /agent/register.
 // It registers or updates an agent in the DB.
@@ -56,11 +64,15 @@ func RegisterAgent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to generate API secret"})
 	}
 
-	// Update agent with API key and secret
-	agent.APIKey = apiKey
-	agent.APISecret = apiSecret
+	// Hash API key and secret
+	hashedAPIKey := hashAPIKey(apiKey)
+	hashedAPISecret := hashAPIKey(apiSecret)
 
-	// Update document with API key and secret
+	// Update agent with hashed API key and secret
+	agent.APIKey = hashedAPIKey
+	agent.APISecret = hashedAPISecret
+
+	// Update document with hashed API key and secret
 	update = bson.M{"$set": agent}
 	_, err = collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
@@ -68,15 +80,15 @@ func RegisterAgent(c echo.Context) error {
 	}
 
 	response := echo.Map{
-		"api_key":     apiKey,
-		"api_secret":  apiSecret,
+		"api_key":     apiKey, // Return the unhashed API key to the agent
+		"api_secret":  apiSecret, // Return the unhashed API secret to the agent
 		"status":      "registered",
 		"timestamp":   time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
 
-// generateSecureToken generates a secure random token for API key.
+// generateSecureToken generates a secure random token for API key and secret.
 func generateSecureToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
