@@ -86,11 +86,19 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		c.Set("agent_id", agent.ID.Hex())
 		c.Set("agent_uuid", agent.UUID)
 
-		// Read the request body to compute the HMAC signature.
+		// Define a struct to bind the request body to.  We don't actually care
+		// about the contents, we just need to read the body for signature validation.
+		var body struct{}
+		if err := c.Bind(&body); err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})
+		}
+
+		// Get the request body as a byte slice.
 		bodyBytes, err := io.ReadAll(c.Request().Body)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Unable to read request body"})
 		}
+
 		// Restore the request body for downstream handlers.
 		c.Request().Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
