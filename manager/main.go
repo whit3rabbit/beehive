@@ -136,19 +136,24 @@ func main() {
 	defer cancel()
 
 	var adminUser models.Admin
-	if err := adminCollection.FindOne(ctx, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser); err != nil {
-		hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword)
-		if err != nil {
-			logger.Fatal("Failed to hash default admin password", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
-		}
-		_, err = adminCollection.InsertOne(ctx, models.Admin{
-			Username:  config.Admin.DefaultUsername,
-			Password:  hashedPassword,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		})
-		if err != nil {
-			logger.Error("Failed to create initial admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+	err = adminCollection.FindOne(ctx, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword)
+			if err != nil {
+				logger.Fatal("Failed to hash default admin password", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+			}
+			_, err = adminCollection.InsertOne(ctx, models.Admin{
+				Username:  config.Admin.DefaultUsername,
+				Password:  hashedPassword,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
+			if err != nil {
+				logger.Error("Failed to create initial admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+			}
+		} else {
+			logger.Error("Failed to find admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
 		}
 	}
 	defer func() {
