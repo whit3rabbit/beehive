@@ -100,32 +100,32 @@ func main() {
 	// Load configuration
 	config, err := loadConfig("config.yaml")
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
 	// Ensure required environment variables are set
 	requiredEnvs := []string{"JWT_SECRET", "API_KEY", "API_SECRET", "ADMIN_DEFAULT_PASSWORD"}
 	for _, envVar := range requiredEnvs {
 		if os.Getenv(envVar) == "" {
-			log.Fatalf("Environment variable %s must be set", envVar)
+			logger.Fatal("Environment variable %s must be set", zap.String("envVar", envVar))
 		}
 	}
 
 	// Initialize Logger
 	if err := logger.Initialize(config.Logging.Level); err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		logger.Fatal("Failed to initialize logger", zap.Error(err))
 	}
 	defer logger.Sync()
 
 	// Connect to MongoDB (unchanged)
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
-		log.Fatalf("Error connecting to MongoDB: %v", err)
+		logger.Fatal("Error connecting to MongoDB", zap.Error(err))
 	}
 
 	// Run migrations
 	// Ensure MongoDB client is initialized before running migrations
 	if mongodb.Client == nil {
-		log.Fatalf("MongoDB client not initialized")
+		logger.Fatal("MongoDB client not initialized")
 	}
 
 	db := mongodb.Client.Database(config.MongoDB.Database)
@@ -135,14 +135,14 @@ func main() {
 	}
 
 	if err := migrations.RunMigrations(db, allMigrations); err != nil {
-		log.Fatalf("Error running migrations: %v", err)
+		logger.Fatal("Error running migrations", zap.Error(err))
 	}
 
 	// Ensure admin user exists
 	adminCollection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("admins")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	var adminUser models.Admin
 	if err := adminCollection.FindOne(ctx, bson.M{"username": os.Getenv("ADMIN_DEFAULT_USERNAME")}).Decode(&adminUser); err != nil {
 		hashedPassword, _ := admin.GenerateHashPassword(os.Getenv("ADMIN_DEFAULT_PASSWORD"))
@@ -153,12 +153,12 @@ func main() {
 			UpdatedAt: time.Now(),
 		})
 		if err != nil {
-			log.Printf("Failed to create initial admin user: %v", err)
+			logger.Error("Failed to create initial admin user", zap.Error(err))
 		}
 	}
 	defer func() {
 		if err := mongodb.Disconnect(); err != nil {
-			log.Printf("Error disconnecting MongoDB: %v", err)
+			logger.Error("Error disconnecting MongoDB", zap.Error(err))
 		}
 	}()
 
@@ -211,14 +211,14 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
 	if config.Server.TLS.Enabled {
-		log.Printf("Starting server with TLS on https://%s", addr)
+		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
 		if err := e.StartTLS(addr, config.Server.TLS.CertFile, config.Server.TLS.KeyFile); err != nil {
-			log.Fatalf("Error starting TLS server: %v", err)
+			logger.Fatal("Error starting TLS server", zap.Error(err))
 		}
 	} else {
-		log.Printf("Starting server on http://%s", addr)
+		logger.Info("Starting server", zap.String("address", "http://"+addr))
 		if err := e.Start(addr); err != nil {
-			log.Fatalf("Error starting server: %v", err)
+			logger.Fatal("Error starting server", zap.Error(err))
 		}
 	}
 }
