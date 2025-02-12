@@ -33,6 +33,35 @@ func RequestValidationMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+// RefreshToken handles the token refresh endpoint.
+func RefreshToken(c echo.Context) error {
+	// Get the token from the request header.
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Validate the current token.
+	jwtSecret := c.Get("jwt_secret").(string)
+	claims, err := admin.ValidateToken(tokenStr, jwtSecret)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
+	}
+
+	// Generate a new token with an extended expiration.
+	newToken, err := admin.GenerateToken(claims.Username, jwtSecret, c.Get("token_expiration_hours").(int))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
+	}
+
+	// Return the new token.
+	return c.JSON(http.StatusOK, echo.Map{
+		"token":    newToken,
+		"username": claims.Username,
+	})
+}
+
 // AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header.
 // It expects the header in the format: "Bearer <token>".
 func AdminAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
