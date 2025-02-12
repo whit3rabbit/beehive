@@ -16,8 +16,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/whit3rabbit/beehive/manager/api/admin"
-	"github.com/whit3rabbit/beehive/manager/common"
-	"github.com/whit3rabbit/beehive/manager/common"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	"github.com/whit3rabbit/beehive/manager/models"
 )
@@ -29,11 +27,6 @@ type Validatable interface {
 // RequestValidationMiddleware validates the request body against the struct tags.
 func RequestValidationMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		if validatable, ok := c.Get("body").(Validatable); ok {
-			if err := common.Validate.Struct(validatable); err != nil {
-				return c.JSON(http.StatusBadRequest, echo.Map{"error": "Validation failed", "details": err.Error()})
-			}
-		}
 		return next(c)
 	}
 }
