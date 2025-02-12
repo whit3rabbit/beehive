@@ -4,10 +4,9 @@ import (
     "context"
     "fmt"
     "net/http"
+	"time"
     "os"
     "os/signal"
-    "sync"
-    "time"
 
     "github.com/joho/godotenv"
     "github.com/labstack/echo/v4"
@@ -64,7 +63,6 @@ type HealthStatus struct {
 }
 
 var startTime time.Time
-
 
 func loadConfig(filename string) (*Config, error) {
 	// Load .env first
