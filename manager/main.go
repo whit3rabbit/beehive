@@ -128,18 +128,11 @@ func main() {
 		log.Fatalf("MongoDB client not initialized")
 	}
 
-	dbURI := os.Getenv("MONGODB_URI")
-	dbName := os.Getenv("MONGODB_DATABASE")
-
-	if dbURI == "" || dbName == "" {
-		log.Fatalf("MONGODB_URI and MONGODB_DATABASE must be set")
-	}
-
 	allMigrations := []migrations.Migration{
 		migrations.Migration0001,
 	}
 
-	if err := migrations.RunMigrations(dbURI, dbName, allMigrations); err != nil {
+	if err := migrations.RunMigrations(config.MongoDB.URI, config.MongoDB.Database, allMigrations); err != nil {
 		log.Fatalf("Error running migrations: %v", err)
 	}
 
