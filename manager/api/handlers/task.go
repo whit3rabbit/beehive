@@ -21,10 +21,15 @@ type taskRequest struct {
 }
 
 // CreateTask handles POST /task/create.
+// MaxTaskOutputSize defines the maximum size for task output (in bytes).
+const MaxTaskOutputSize = 1024 * 1024 // 1MB
+
+// CreateTask handles POST /task/create.
 // It accepts a task creation request and inserts a new task.
 func CreateTask(c echo.Context) error {
 	var req taskRequest
 	if err := c.Bind(&req); err != nil {
+		logger.Error("Invalid request payload", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
 
@@ -67,6 +72,12 @@ func CreateTask(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task type"})
 	}
 
+	// Validate task output size
+	if len(task.Output) > MaxTaskOutputSize {
+		logger.Error("Task output exceeds size limit", zap.Int("output_size", len(task.Output)), zap.Int("max_size", MaxTaskOutputSize))
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Task output exceeds size limit"})
+	}
+
 	dbName := c.Get("mongodb_database").(string)
 	collection := mongodb.Client.Database(dbName).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -78,7 +89,7 @@ func CreateTask(c echo.Context) error {
 	}
 
 	response := echo.Map{
-		"task_id": task.ID.Hex(),
+		"task_id":   task.ID.Hex(),
 		"status":    "queued", // initial status
 		"timestamp": now,
 	}
@@ -108,6 +119,26 @@ func GetTaskStatus(c echo.Context) error {
 		logger.Error("Task not found", zap.Error(err), zap.String("task_id", taskID))
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Task not found"})
 	}
+
+	// Check for timeout
+	if task.Status == "running" && task.Timeout > 0 && !task.StartedAt.IsZero() {
+		if time.Since(task.StartedAt) > time.Duration(task.Timeout)*time.Second {
+			// Update task status to "timeout"
+			update := bson.M{
+				"$set": bson.M{
+					"status":     "timeout",
+					"updated_at": time.Now(),
+				},
+			}
+			_, err := collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+			if err != nil {
+				logger.Error("Failed to update task status to timeout", zap.Error(err), zap.String("task_id", taskID))
+				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to retrieve task status"})
+			}
+			task.Status = "timeout" // Update local task status
+		}
+	}
+
 	return c.JSON(http.StatusOK, task)
 }
 
