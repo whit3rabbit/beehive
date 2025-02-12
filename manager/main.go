@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"github.com/whit3rabbit/beehive/manager/models"
-	"go.mongodb.org/mongo-driver/bson"
 	"os"
 	"strconv"
+
+	"github.com/whit3rabbit/beehive/manager/models"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
