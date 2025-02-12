@@ -19,16 +19,15 @@ var validate = validator.New()
 // CreateTask handles POST /task/create.
 // It accepts a task creation request and inserts a new task.
 func CreateTask(c echo.Context) error {
-	var req struct {
+	type taskRequest struct {
 		Task models.Task `json:"task" validate:"required"`
 	}
+	var req taskRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
-	// Validate the request structure.
-	if err := validate.Struct(req); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Validation failed", "details": err.Error()})
-	}
+
+	c.Set("body", &req)
 
 	task := req.Task
 	now := time.Now()
@@ -68,7 +67,9 @@ func CreateTask(c echo.Context) error {
 		"status":   "queued", // initial status
 		"timestamp": now,
 	}
-	return c.JSON(http.StatusOK, response)
+// Validate validates the task request.
+func (req *taskRequest) Validate() error {
+	return validate.Struct(req)
 }
 
 // GetTaskStatus handles GET /task/status/:task_id.

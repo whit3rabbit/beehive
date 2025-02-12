@@ -166,7 +166,7 @@ func main() {
 	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
 	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
 	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
-	agentRoutes.POST("/task/create", handlers.CreateTask)
+	agentRoutes.POST("/task/create", handlers.CreateTask, customMiddleware.RequestValidationMiddleware)
 	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
 	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
 
