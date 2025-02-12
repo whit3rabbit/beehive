@@ -111,6 +111,12 @@ func main() {
 		}
 	}
 
+	// Initialize Logger
+	if err := logger.Initialize(config.Logging.Level); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+
 	// Connect to MongoDB (unchanged)
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
 		log.Fatalf("Error connecting to MongoDB: %v", err)
