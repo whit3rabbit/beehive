@@ -71,11 +71,11 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// Get MongoDB database name from context
 		dbName := c.Get("mongodb_database").(string)
 		collection := mongodb.Client.Database(dbName).Collection("agents")
-		
+
 		// Find agent by API key
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		
+
 		var agent models.Agent
 		err := collection.FindOne(ctx, bson.M{"api_key": apiKey}).Decode(&agent)
 		if err != nil {
