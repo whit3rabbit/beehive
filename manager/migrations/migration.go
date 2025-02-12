@@ -42,7 +42,7 @@ func RunMigrations(dbURI, dbName string, migrations []Migration) error {
 	migrationCollection := db.Collection(migrationCollectionName)
 
 	// Ensure the migration collection exists
-	names, err := db.ListCollectionNames(ctx, &mongo.ListCollectionsOptions{})
+	names, err := db.ListCollectionNames(ctx, mongo.ListCollectionsOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
