@@ -10,9 +10,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	"manager/mongodb"
+	"manager/internal/mongodb"
 	"manager/api/handlers"
-	"manager/admin"
+	"manager/internal/admin"
 	"manager/middleware"
 )
 
