@@ -29,6 +29,14 @@ type Validatable interface {
 // RequestValidationMiddleware validates the request body against the struct tags.
 func RequestValidationMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if validatable, ok := c.Get("body").(Validatable); ok {
+			if err := validate.Struct(validatable); err != nil {
+				return c.JSON(http.StatusBadRequest, echo.Map{
+					"error":   "Validation failed",
+					"details": err.Error(),
+				})
+			}
+		}
 		return next(c)
 	}
 }

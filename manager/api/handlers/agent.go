@@ -7,12 +7,25 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
-	"os"
 	"time"
+
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"os"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/labstack/echo/v4"
+)
+
+const (
+	DefaultContextTimeout = 10 * time.Second
+	LongContextTimeout   = 30 * time.Second
+)
+
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
+}
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"go.mongodb.org/mongo-driver/bson"
 	"time"
 

@@ -155,6 +155,22 @@ func LoginHandler(c echo.Context) error {
 	})
 }
 
+func cleanupLoginAttempts() {
+	ticker := time.NewTicker(15 * time.Minute)
+	go func() {
+		for range ticker.C {
+			loginMutex.Lock()
+			now := time.Now()
+			for username, attempt := range loginAttempts {
+				if now.Sub(attempt.lastAttempt) > 15*time.Minute {
+					delete(loginAttempts, username)
+				}
+			}
+			loginMutex.Unlock()
+		}
+	}()
+}
+
 func updateLoginAttempts(username string, success bool) {
 	loginMutex.Lock()
 	defer loginMutex.Unlock()
