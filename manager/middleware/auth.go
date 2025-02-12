@@ -94,10 +94,12 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// Restore the request body for downstream handlers.
 		c.Request().Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
-		mac := hmac.New(sha256.New, apiSecret)
+		// Use the agent's API secret to compute the HMAC signature.
+		mac := hmac.New(sha256.New, []byte(agent.APISecret))
 		mac.Write(bodyBytes)
 		expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
+		// Compare the computed signature with the signature from the header.
 		if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid signature"})
 		}
