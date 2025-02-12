@@ -63,6 +63,8 @@ var Migration0001 = Migration{
 		return nil
 	},
 	Down: func(db *mongo.Database) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		// Drop collections (for rollback purposes)
 		err := db.Collection("admins").Drop(ctx)
 		if err != nil {
