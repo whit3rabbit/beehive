@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -43,7 +44,7 @@ func CreateRole(c echo.Context) error {
 
 	role.CreatedAt = time.Now()
 	// Generate a unique ID for the role using MongoDB's ObjectID.
-	role.ID = primitive.NewObjectID().Hex()
+	role.ID = primitive.NewObjectID()
 
 	collection := mongodb.Client.Database("manager_db").Collection("roles")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -68,7 +69,12 @@ func GetRole(c echo.Context) error {
 	defer cancel()
 
 	var role models.Role
-	if err := collection.FindOne(ctx, bson.M{"_id": roleID}).Decode(&role); err != nil {
+	objID, err := primitive.ObjectIDFromHex(roleID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid role ID format"})
+	}
+
+	if err := collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&role); err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Role not found"})
 	}
 	return c.JSON(http.StatusOK, role)

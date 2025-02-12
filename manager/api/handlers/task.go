@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -66,7 +67,7 @@ func GetTaskStatus(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing task ID"})
 	}
 
-	collection := mongodb.Client.Database("manager_db").Collection("tasks")
+	collection := mongodb.Client.Database(os.Getenv("MONGODB_DATABASE")).Collection("tasks")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

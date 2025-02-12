@@ -1,9 +1,12 @@
 package models
 
-import "time"
+import (
+	"time"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type LogEntry struct {
-	ID        string    `json:"id" bson:"_id,omitempty"`
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Timestamp time.Time `json:"timestamp" bson:"timestamp"`
 	Endpoint  string    `json:"endpoint" bson:"endpoint"`
 	AgentID   string    `json:"agent_id,omitempty" bson:"agent_id,omitempty"`
