@@ -40,11 +40,20 @@ func hashAPIKey(key string) string {
 }
 
 // RegisterAgent handles POST /agent/register.
-// It registers or updates an agent in the DB.
+// @Summary Registers a new agent or updates an existing one
+// @Description Registers or updates an agent in the database.
+// @Tags agent
+// @Accept json
+// @Produce json
+// @Param agent body models.Agent true "Agent registration info"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /agent/register [post]
 func RegisterAgent(c echo.Context) error {
 	var agent models.Agent
 	if err := c.Bind(&agent); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
 	}
 
 	// Set created_at if not provided
@@ -153,10 +162,20 @@ func AgentHeartbeat(c echo.Context) error {
 }
 
 // ListAgentTasks handles GET /agent/:agent_id/tasks.
+// @Summary Lists tasks for a specific agent
+// @Description Retrieves all tasks associated with a given agent ID.
+// @Tags agent
+// @Accept json
+// @Produce json
+// @Param agent_id path string true "Agent ID"
+// @Success 200 {array} models.Task
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /agent/{agent_id}/tasks [get]
 func ListAgentTasks(c echo.Context) error {
 	agentID := c.Param("agent_id")
 	if agentID == "" {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing agent ID"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Missing agent ID"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
@@ -166,13 +185,13 @@ func ListAgentTasks(c echo.Context) error {
 
 	cursor, err := collection.Find(ctx, bson.M{"agent_id": agentID})
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to retrieve tasks"})
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve tasks"})
 	}
 	defer cursor.Close(ctx)
 
 	var tasks []models.Task
 	if err = cursor.All(ctx, &tasks); err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to parse tasks"})
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to parse tasks"})
 	}
 	return c.JSON(http.StatusOK, tasks)
 }

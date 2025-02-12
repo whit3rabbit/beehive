@@ -20,17 +20,25 @@ type taskRequest struct {
 	Task models.Task `json:"task" validate:"required"`
 }
 
-// CreateTask handles POST /task/create.
 // MaxTaskOutputSize defines the maximum size for task output (in bytes).
 const MaxTaskOutputSize = 1024 * 1024 // 1MB
 
 // CreateTask handles POST /task/create.
-// It accepts a task creation request and inserts a new task.
+// @Summary Creates a new task
+// @Description Adds a new task to the database.
+// @Tags task
+// @Accept json
+// @Produce json
+// @Param task body taskRequest true "Task object to be created"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /task/create [post]
 func CreateTask(c echo.Context) error {
 	var req taskRequest
 	if err := c.Bind(&req); err != nil {
 		logger.Error("Invalid request payload", zap.Error(err))
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
 	}
 
 	c.Set("body", req)
@@ -65,17 +73,17 @@ func CreateTask(c echo.Context) error {
 	}
 
 	if !validStatuses[task.Status] {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid status"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid status"})
 	}
 
 	if !validTaskTypes[task.Type] {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task type"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid task type"})
 	}
 
 	// Validate task output size
 	if len(task.Output) > MaxTaskOutputSize {
 		logger.Error("Task output exceeds size limit", zap.Int("output_size", len(task.Output)), zap.Int("max_size", MaxTaskOutputSize))
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Task output exceeds size limit"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Task output exceeds size limit"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
@@ -85,7 +93,7 @@ func CreateTask(c echo.Context) error {
 
 	if _, err := collection.InsertOne(ctx, task); err != nil {
 		logger.Error("Failed to create task", zap.Error(err), zap.String("task_type", task.Type), zap.String("agent_id", task.AgentID))
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create task"})
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create task"})
 	}
 
 	response := echo.Map{
@@ -97,11 +105,21 @@ func CreateTask(c echo.Context) error {
 }
 
 // GetTaskStatus handles GET /task/status/:task_id.
-// It retrieves the status and output for a specific task.
+// @Summary Retrieves the status of a specific task
+// @Description Gets the status and output of a task based on its ID.
+// @Tags task
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID"
+// @Success 200 {object} models.Task
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /task/status/{task_id} [get]
 func GetTaskStatus(c echo.Context) error {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing task ID"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Missing task ID"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
@@ -111,13 +129,13 @@ func GetTaskStatus(c echo.Context) error {
 
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task ID format"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid task ID format"})
 	}
 
 	var task models.Task
 	if err := collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&task); err != nil {
 		logger.Error("Task not found", zap.Error(err), zap.String("task_id", taskID))
-		return c.JSON(http.StatusNotFound, echo.Map{"error": "Task not found"})
+		return c.JSON(http.StatusNotFound, ErrorResponse{Error: "Task not found"})
 	}
 
 	// Check for timeout
@@ -133,7 +151,7 @@ func GetTaskStatus(c echo.Context) error {
 			_, err := collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 			if err != nil {
 				logger.Error("Failed to update task status to timeout", zap.Error(err), zap.String("task_id", taskID))
-				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to retrieve task status"})
+				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve task status"})
 			}
 			task.Status = "timeout" // Update local task status
 		}
@@ -143,11 +161,20 @@ func GetTaskStatus(c echo.Context) error {
 }
 
 // CancelTask handles POST /task/cancel/:task_id.
-// It updates a task's status to cancelled.
+// @Summary Cancels a specific task
+// @Description Updates the status of a task to "cancelled".
+// @Tags task
+// @Accept json
+// @Produce json
+// @Param task_id path string true "Task ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /task/cancel/{task_id} [post]
 func CancelTask(c echo.Context) error {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Missing task ID"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Missing task ID"})
 	}
 
 	dbName := c.Get("mongodb_database").(string)
@@ -157,7 +184,7 @@ func CancelTask(c echo.Context) error {
 
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid task ID format"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid task ID format"})
 	}
 
 	update := bson.M{
@@ -169,7 +196,7 @@ func CancelTask(c echo.Context) error {
 	res, err := collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 	if err != nil || res.MatchedCount == 0 {
 		logger.Error("Failed to cancel task", zap.Error(err), zap.String("task_id", taskID))
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to cancel task"})
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to cancel task"})
 	}
 
 	response := echo.Map{
