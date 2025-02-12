@@ -64,10 +64,6 @@ func CreateTask(c echo.Context) error {
 		"status":   "queued", // initial status
 		"timestamp": now,
 	}
-// Validate validates the task request.
-func (req *taskRequest) Validate() error {
-	return validate.Struct(req)
-}
 
 // GetTaskStatus handles GET /task/status/:task_id.
 // It retrieves the status and output for a specific task.
@@ -117,4 +113,9 @@ func CancelTask(c echo.Context) error {
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
+}
+
+// Validate validates the task request.
+func (req *taskRequest) Validate() error {
+	return validate.Struct(req)
 }
