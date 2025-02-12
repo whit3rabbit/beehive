@@ -73,6 +73,9 @@ func GetLogger() *zap.Logger {
 			panic("Failed to initialize logger: " + err.Error())
 		}
 	}
+	if Log == nil {
+		return zap.NewNop()
+	}
 	return Log
 }
 
