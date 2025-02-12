@@ -174,6 +174,7 @@ func cleanupLoginAttempts() {
 	}()
 }
 
+// updateLoginAttempts updates the login attempts count for a given username.
 func updateLoginAttempts(username string, success bool) {
 	loginMutex.Lock()
 	defer loginMutex.Unlock()
