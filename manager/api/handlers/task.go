@@ -13,7 +13,6 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/models"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/common"
 )
 
 // taskRequest defines the structure for task creation requests.
