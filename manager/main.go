@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 
@@ -54,6 +53,16 @@ type Config struct {
 	} `yaml:"logging"`
 }
 
+// HealthStatus defines the structure for health check response.
+type HealthStatus struct {
+	Status  string  `json:"status"`
+	MongoDB string  `json:"mongodb"`
+	Uptime  float64 `json:"uptime"`
+	Version string  `json:"version"`
+}
+
+var startTime time.Time
+
 func loadConfig(filename string) (*Config, error) {
 	// Load .env first
 	godotenv.Load()
@@ -76,6 +85,9 @@ func loadConfig(filename string) (*Config, error) {
 }
 
 func main() {
+	// Record start time
+	startTime = time.Now()
+
 	// Load configuration
 	config, err := loadConfig("config.yaml")
 	if err != nil {
@@ -172,10 +184,25 @@ func main() {
 	// Health check endpoint
 	e.GET("/health", func(c echo.Context) error {
 		// Check MongoDB connection
+		mongoStatus := "healthy"
 		if err := mongodb.Client.Ping(context.Background(), nil); err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{"status": "unhealthy", "error": "MongoDB connection failed"})
+			mongoStatus = "unhealthy"
 		}
-		return c.JSON(http.StatusOK, echo.Map{"status": "healthy"})
+
+		// Calculate uptime
+		uptime := time.Since(startTime).Seconds()
+
+		// Get version information (replace with your actual version retrieval)
+		version := "v1.0.0"
+
+		healthStatus := HealthStatus{
+			Status:  "healthy",
+			MongoDB: mongoStatus,
+			Uptime:  uptime,
+			Version: version,
+		}
+
+		return c.JSON(http.StatusOK, healthStatus)
 	})
 
 	// Admin routes (JWT auth)
