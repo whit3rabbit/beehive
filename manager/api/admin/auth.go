@@ -1,4 +1,3 @@
-// Claims represents the JWT claims for an admin user.
 package admin
 
 import (
@@ -18,6 +17,7 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	"github.com/whit3rabbit/beehive/manager/models"
+)
 
 type Claims struct {
 	Username string `json:"username"`
