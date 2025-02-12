@@ -7,14 +7,11 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/whit3rabbit/beehive/manager/models"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
-
-var validate = validator.New()
 
 // CreateTask handles POST /task/create.
 // It accepts a task creation request and inserts a new task.
