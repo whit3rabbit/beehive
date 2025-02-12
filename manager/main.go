@@ -212,12 +212,13 @@ func main() {
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
 	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
-	adminRoutes.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(5))) // stricter limit for admin routes
 
 	// Admin protected routes
 	adminRoutes.GET("/roles", handlers.ListRoles)
 	adminRoutes.POST("/roles", handlers.CreateRole)
 	adminRoutes.GET("/roles/:role_id", handlers.GetRole)
+
+	adminRoutes.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(5))) // stricter limit for admin routes
 
 	// Agent routes (API key auth)
 	agentRoutes := e.Group("/api")
