@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"time"
 	"os"
@@ -38,13 +40,24 @@ func RegisterAgent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register agent"})
 	}
 
-	// Normally you'd generate an API key; here we return a dummy key.
+	apiKey := generateSecureToken() // Implement secure token generation
+	// Store hashed API key in the database
+
 	response := echo.Map{
-		"api_key":  "dummy_api_key",
-		"status":   "registered",
+		"api_key":   apiKey,
+		"status":    "registered",
 		"timestamp": time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
+}
+
+// generateSecureToken generates a secure random token for API key.
+func generateSecureToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "" // Handle error appropriately
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 // AgentHeartbeat handles POST /agent/heartbeat.
