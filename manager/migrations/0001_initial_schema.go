@@ -67,6 +67,13 @@ var Migration0001 = Migration{
 			return err
 		}
 
+		// Create index on agent_id in tasks collection
+		agentIDKeys := bson.M{"agent_id": 1}
+		err = createIndex(db, "tasks", agentIDKeys, nil)
+		if err != nil {
+			return err
+		}
+
 		log.Println("Migration 0001 Up executed successfully")
 		return nil
 	},
