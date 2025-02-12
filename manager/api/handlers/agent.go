@@ -69,8 +69,9 @@ func RegisterAgent(c echo.Context) error {
 
 	response := echo.Map{
 		"api_key":     apiKey,
-		"status": "registered",
-		"timestamp": time.Now(),
+		"api_secret":  apiSecret,
+		"status":      "registered",
+		"timestamp":   time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
