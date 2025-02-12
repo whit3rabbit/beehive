@@ -156,6 +156,9 @@ func main() {
 		}
 	}()
 
+	// Start cleanup routine for login attempts
+	admin.CleanupLoginAttempts()
+
 	// Create a new Echo instance
 	e := echo.New()
 
