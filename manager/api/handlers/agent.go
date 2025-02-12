@@ -38,8 +38,6 @@ func RegisterAgent(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	agent.ID = primitive.NewObjectID()
-
 	filter := bson.M{"uuid": agent.UUID}
 	update := bson.M{"$set": agent}
 	opts := options.Update().SetUpsert(true)
