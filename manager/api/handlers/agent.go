@@ -52,7 +52,7 @@ func hashAPIKey(key string) string {
 // @Accept json
 // @Produce json
 // @Param agent body models.Agent true "Agent registration info"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} models.AgentRegistrationResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /agent/register [post]
@@ -174,15 +174,13 @@ func GetAgentSummary(c echo.Context) error {
 // @Tags agent
 // @Accept json
 // @Produce json
-// @Param body body struct{UUID string `json:"uuid"`} true "Agent UUID"
-// @Success 200 {object} map[string]interface{}
+// @Param body body models.HeartbeatRequest true "Agent UUID and timestamp"
+// @Success 200 {object} models.HeartbeatResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /agent/heartbeat [post]
 func AgentHeartbeat(c echo.Context) error {
-	var req struct {
-		UUID string `json:"uuid"`
-	}
+	var req models.HeartbeatRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
 	}
@@ -220,6 +218,7 @@ func AgentHeartbeat(c echo.Context) error {
 // @Param agent_id path string true "Agent ID"
 // @Success 200 {array} models.Task
 // @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /agent/{agent_id}/tasks [get]
 func ListAgentTasks(c echo.Context) error {
