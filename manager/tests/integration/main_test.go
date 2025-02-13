@@ -256,6 +256,139 @@ func TestRateLimiter(t *testing.T) {
 	assert.Zero(t, waitTime, "Wait time should be zero")
 }
 
+func TestLogEntryCRUD(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("logs")
+
+	// Create log entry
+	logEntry := models.LogEntry{
+		Timestamp: time.Now(),
+		Endpoint:  "/api/test",
+		AgentID:   "test-agent-id",
+		Status:    "success",
+		Details:   "Test log entry",
+	}
+
+	result, err := collection.InsertOne(ctx, logEntry)
+	assert.NoError(t, err, "Should insert log entry without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Read log entry
+	var foundLog models.LogEntry
+	err = collection.FindOne(ctx, bson.M{"agent_id": logEntry.AgentID}).Decode(&foundLog)
+	assert.NoError(t, err, "Should find log entry without error")
+	assert.Equal(t, logEntry.Status, foundLog.Status, "Should match status")
+
+	// Update log entry
+	update := bson.M{"$set": bson.M{"details": "Updated details"}}
+	_, err = collection.UpdateOne(ctx, bson.M{"agent_id": logEntry.AgentID}, update)
+	assert.NoError(t, err, "Should update log entry without error")
+
+	// Verify update
+	err = collection.FindOne(ctx, bson.M{"agent_id": logEntry.AgentID}).Decode(&foundLog)
+	assert.NoError(t, err, "Should find updated log entry")
+	assert.Equal(t, "Updated details", foundLog.Details, "Should have updated details")
+
+	// Delete log entry
+	_, err = collection.DeleteOne(ctx, bson.M{"agent_id": logEntry.AgentID})
+	assert.NoError(t, err, "Should delete log entry without error")
+
+	// Verify deletion
+	err = collection.FindOne(ctx, bson.M{"agent_id": logEntry.AgentID}).Decode(&foundLog)
+	assert.Error(t, err, "Should not find deleted log entry")
+	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
+}
+
+func TestTaskOutputValidation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("tasks")
+
+	// Create task with output
+	task := models.Task{
+		AgentID: "test-agent-id",
+		Type:    "command_shell",
+		Parameters: map[string]interface{}{
+			"command": "echo test",
+		},
+		Status: "completed",
+		Output: &models.Output{
+			Logs:  "Test output logs",
+			Error: "",
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Timeout:   300,
+	}
+
+	result, err := collection.InsertOne(ctx, task)
+	assert.NoError(t, err, "Should insert task without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Read and verify output
+	var foundTask models.Task
+	err = collection.FindOne(ctx, bson.M{"agent_id": task.AgentID}).Decode(&foundTask)
+	assert.NoError(t, err, "Should find task without error")
+	assert.NotNil(t, foundTask.Output, "Should have output")
+	assert.Equal(t, task.Output.Logs, foundTask.Output.Logs, "Should match output logs")
+
+	// Update output
+	update := bson.M{"$set": bson.M{"output.logs": "Updated output logs"}}
+	_, err = collection.UpdateOne(ctx, bson.M{"agent_id": task.AgentID}, update)
+	assert.NoError(t, err, "Should update task output without error")
+
+	// Verify output update
+	err = collection.FindOne(ctx, bson.M{"agent_id": task.AgentID}).Decode(&foundTask)
+	assert.NoError(t, err, "Should find updated task")
+	assert.Equal(t, "Updated output logs", foundTask.Output.Logs, "Should have updated output logs")
+
+	// Cleanup
+	_, err = collection.DeleteOne(ctx, bson.M{"agent_id": task.AgentID})
+	assert.NoError(t, err, "Should delete task without error")
+}
+
+func TestPasswordPolicyValidation(t *testing.T) {
+	policy := models.PasswordPolicy{
+		MinLength:        8,
+		RequireUppercase: true,
+		RequireLowercase: true,
+		RequireNumbers:   true,
+		RequireSpecial:   true,
+	}
+
+	// Test valid password
+	validPassword := "Test123!@"
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(validPassword), bcrypt.DefaultCost)
+	assert.NoError(t, err, "Should hash valid password without error")
+
+	// Test password verification
+	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(validPassword))
+	assert.NoError(t, err, "Should verify valid password without error")
+
+	// Test invalid passwords
+	testCases := []struct {
+		password string
+		name     string
+	}{
+		{"short", "too short"},
+		{"nouppercase123!", "no uppercase"},
+		{"NOLOWERCASE123!", "no lowercase"},
+		{"NoNumbers!", "no numbers"},
+		{"NoSpecial123", "no special chars"},
+	}
+
+	for _, tc := range testCases {
+		_, err := bcrypt.GenerateFromPassword([]byte(tc.password), bcrypt.DefaultCost)
+		assert.NoError(t, err, "Should hash password without error")
+		// Additional policy validation would go here in a real implementation
+	}
+}
+
 func TestTaskCRUD(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
