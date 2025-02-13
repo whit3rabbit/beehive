@@ -353,14 +353,6 @@ func TestTaskOutputValidation(t *testing.T) {
 }
 
 func TestPasswordPolicyValidation(t *testing.T) {
-	policy := models.PasswordPolicy{
-		MinLength:        8,
-		RequireUppercase: true,
-		RequireLowercase: true,
-		RequireNumbers:   true,
-		RequireSpecial:   true,
-	}
-
 	// Test valid password
 	validPassword := "Test123!@"
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(validPassword), bcrypt.DefaultCost)
