@@ -187,14 +187,10 @@ The setup process generates a `.env` file containing sensitive configuration val
 
 ```env
 # Server Configuration
+# Server Configuration
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 STATIC_DIR=./frontend/build
-
-# TLS Configuration
-TLS_ENABLED=true
-TLS_CERT_FILE=certs/server.crt
-TLS_KEY_FILE=certs/server.key
 
 # MongoDB Configuration
 MONGODB_URI=mongodb://user:pass@localhost:27017/dbname
