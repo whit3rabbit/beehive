@@ -8,10 +8,10 @@ server:
     key_file: "certs/server.key"    # Path to your TLS key
 
 mongodb:
-  # TODO: Add mongo root username
-  # TODO: Add mongo root password
   uri: "${MONGODB_URI}"
   database: "manager_db"
+  root_username: "${MONGO_ROOT_USERNAME}"
+  root_password: "${MONGO_ROOT_PASSWORD}"
 
 auth:
   # Sensitive values are expected to come from environment variables.
