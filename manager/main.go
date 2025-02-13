@@ -119,8 +119,8 @@ func main() {
 		logger.Fatal("ADMIN_DEFAULT_PASSWORD must be set in configuration")
 	}
 
-	// Initialize Logger
-	if err := logger.Initialize(config.Logging.Level); err != nil {
+// Initialize Logger
+if err := logger.Initialize(config.Logging.Level); err != nil {
 		logger.Fatal("Failed to initialize logger", zap.Error(err))
 	}
 	defer logger.Sync()
