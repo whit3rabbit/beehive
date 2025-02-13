@@ -247,8 +247,8 @@ func TestRateLimiter(t *testing.T) {
 	assert.False(t, allowed, "Third attempt should be blocked")
 	assert.NotZero(t, waitTime, "Wait time should be non-zero")
 
-	// Wait for window to expire
-	time.Sleep(time.Second * 2)
+	// Wait for window to expire (wait a bit longer than the window)
+	time.Sleep(time.Second * 3)
 
 	// Should be allowed again
 	allowed, waitTime = limiter.CheckLimit("test-user")
