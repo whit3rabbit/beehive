@@ -27,3 +27,14 @@ type AgentSummary struct {
     LastSeen time.Time `json:"last_seen"`
     Role     string    `json:"role"`
 }
+
+// ToSummary converts an Agent to an AgentSummary.
+func (a *Agent) ToSummary() AgentSummary {
+    return AgentSummary{
+        UUID:     a.UUID,
+        Nickname: a.Nickname,
+        Hostname: a.Hostname,
+        LastSeen: a.LastSeen,
+        Role:     a.Role,
+    }
+}
