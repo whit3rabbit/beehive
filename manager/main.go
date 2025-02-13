@@ -30,11 +30,27 @@ type Config struct {
 		Port      int    `yaml:"port"`
 		StaticDir string `yaml:"static_dir"`
 		TLS       struct {
-			Enabled  bool   `yaml:"enabled"`
-			CertFile string `yaml:"cert_file"`
-			KeyFile  string `yaml:"key_file"`
+			Enabled      bool     `yaml:"enabled"`
+			CertFile     string   `yaml:"cert_file"`
+			KeyFile      string   `yaml:"key_file"`
+			MinVersion   string   `yaml:"min_version"`     // e.g., "1.2"
+			CipherSuites []string `yaml:"cipher_suites"` // List of cipher suites
 		} `yaml:"tls"`
 	} `yaml:"server"`
+	Security struct {
+		PasswordPolicy struct {
+			MinLength        int  `yaml:"min_length"`
+			RequireUppercase bool `yaml:"require_uppercase"`
+			RequireLowercase bool `yaml:"require_lowercase"`
+			RequireNumbers   bool `yaml:"require_numbers"`
+			RequireSpecial   bool `yaml:"require_special"`
+		} `yaml:"password_policy"`
+		RateLimiting struct {
+			MaxAttempts     int `yaml:"max_attempts"`
+			WindowSeconds   int `yaml:"window_seconds"`
+			BlockoutMinutes int `yaml:"blockout_minutes"`
+		} `yaml:"rate_limiting"`
+	} `yaml:"security"`
 	MongoDB struct {
 		URI      string `yaml:"uri"`
 		Database string `yaml:"database"`
