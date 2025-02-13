@@ -28,6 +28,21 @@ import (
 )
 
 func main() {
+	// Validate required environment variables
+	requiredEnvVars := []string{
+		"MONGODB_URI",
+		"JWT_SECRET",
+		"API_KEY",
+		"API_SECRET",
+		"ADMIN_DEFAULT_PASSWORD",
+	}
+
+	for _, env := range requiredEnvVars {
+		if os.Getenv(env) == "" {
+			logger.Fatal("Required environment variable not set", zap.String("variable", env))
+		}
+	}
+
     // Parse command line flags
     flags := config.ParseFlags()
 
