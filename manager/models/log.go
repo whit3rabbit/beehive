@@ -14,3 +14,7 @@ type LogEntry struct {
 	Status    string    `json:"status" bson:"status"`
 	Details   string    `json:"details,omitempty" bson:"details,omitempty"`
 }
+
+type LogsResponse struct {
+    Logs []LogEntry `json:"logs"`
+}

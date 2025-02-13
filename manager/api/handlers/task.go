@@ -83,9 +83,20 @@ func CreateTask(c echo.Context) error {
 	}
 
 	// Validate task output size
-	if len(task.Output) > MaxTaskOutputSize {
-		logger.Error("Task output exceeds size limit", zap.Int("output_size", len(task.Output)), zap.Int("max_size", MaxTaskOutputSize))
-		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Task output exceeds size limit"})
+	if task.Output != nil {
+		// Calculate combined size of logs and error
+		outputSize := len(task.Output.Logs)
+		if task.Output.Error != "" {
+			outputSize += len(task.Output.Error)
+		}
+		
+		if outputSize > MaxTaskOutputSize {
+			logger.Error("Task output exceeds size limit", 
+				zap.Int("output_size", outputSize), 
+				zap.Int("max_size", MaxTaskOutputSize))
+			return c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "Task output exceeds size limit"})
+		}
 	}
 
 	dbName := c.Get("mongodb_database").(string)

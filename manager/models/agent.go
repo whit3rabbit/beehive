@@ -19,3 +19,11 @@ type Agent struct {
 	LastSeen  time.Time          `json:"last_seen" bson:"last_seen"`
 	CreatedAt time.Time          `json:"created_at" bson:"created_at"`
 }
+
+type AgentSummary struct {
+    UUID     string    `json:"uuid"`
+    Nickname string    `json:"nickname"`
+    Hostname string    `json:"hostname"`
+    LastSeen time.Time `json:"last_seen"`
+    Role     string    `json:"role"`
+}

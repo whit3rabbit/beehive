@@ -30,6 +30,11 @@ type ErrorResponse struct {
 	Details string `json:"details,omitempty"`
 }
 
+type HeartbeatRequest struct {
+    UUID      string    `json:"uuid" validate:"required"`
+    Timestamp time.Time `json:"timestamp" validate:"required"`
+}
+
 // hashAPIKey hashes the provided API key using SHA256.
 func hashAPIKey(key string) string {
 	hash := sha256.Sum256([]byte(key))
