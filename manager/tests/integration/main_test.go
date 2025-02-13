@@ -26,10 +26,13 @@ func TestMain(m *testing.M) {
 	var err error
 	testConfig = &config.Config{
 		MongoDB: config.MongoDBConfig{
-			URI:      "mongodb://admin:test_password@localhost:27018",
+			URI:      "mongodb://admin:test_password@localhost:27018/admin",
 			Database: "manager_test_db",
 		},
 	}
+
+	// Wait for MongoDB to be ready
+	time.Sleep(2 * time.Second)
 
 	// Connect to test MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

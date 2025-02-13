@@ -7,6 +7,9 @@ services:
       - MONGO_INITDB_DATABASE=manager_test_db
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=test_password
+    command: mongod --auth
+    volumes:
+      - ./init-mongo-test.js:/docker-entrypoint-initdb.d/init-mongo-test.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
