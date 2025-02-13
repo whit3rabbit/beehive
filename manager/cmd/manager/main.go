@@ -3,224 +3,72 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 
 	"github.com/whit3rabbit/beehive/manager/api/admin"
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
+	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/internal/setup"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/migrations"
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
-// RateLimiterConfig holds rate limiting configuration
-type RateLimiterConfig struct {
-	MaxAttempts     int           `yaml:"max_attempts"`
-	WindowSeconds   int           `yaml:"window_seconds"`
-	BlockoutMinutes int           `yaml:"blockout_minutes"`
-}
-
-type Config struct {
-	Server struct {
-		Host      string `yaml:"host"`
-		Port      int    `yaml:"port"`
-		StaticDir string `yaml:"static_dir"`
-		TLS       struct {
-			Enabled      bool     `yaml:"enabled"`
-			CertFile     string   `yaml:"cert_file"`
-			KeyFile      string   `yaml:"key_file"`
-			MinVersion   string   `yaml:"min_version"`
-			CipherSuites []string `yaml:"cipher_suites"`
-		} `yaml:"tls"`
-	} `yaml:"server"`
-	Security struct {
-		PasswordPolicy struct {
-			MinLength        int  `yaml:"min_length"`
-			RequireUppercase bool `yaml:"require_uppercase"`
-			RequireLowercase bool `yaml:"require_lowercase"`
-			RequireNumbers   bool `yaml:"require_numbers"`
-			RequireSpecial   bool `yaml:"require_special"`
-		} `yaml:"password_policy"`
-		RateLimiting RateLimiterConfig `yaml:"rate_limiting"`
-	} `yaml:"security"`
-	MongoDB struct {
-		URI      string `yaml:"uri"`
-		Database string `yaml:"database"`
-	} `yaml:"mongodb"`
-	Auth struct {
-		JWTSecret            string `yaml:"jwt_secret"`
-		TokenExpirationHours int    `yaml:"token_expiration_hours"`
-		APIKey               string `yaml:"api_key"`
-		APISecret            string `yaml:"api_secret"`
-	} `yaml:"auth"`
-	Admin struct {
-		DefaultUsername string `yaml:"default_username"`
-		DefaultPassword string `yaml:"default_password"`
-	} `yaml:"admin"`
-	Logging struct {
-		Level string `yaml:"level"`
-	} `yaml:"logging"`
-}
-
-// HealthStatus defines the structure for health check response.
-type HealthStatus struct {
-	Status  string  `json:"status"`
-	MongoDB string  `json:"mongodb"`
-	Uptime  float64 `json:"uptime"`
-	Version string  `json:"version"`
-}
-
-func loadConfig(filename string) (*Config, error) {
-	// Load .env first
-	godotenv.Load()
-
-	// Read YAML file
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %v", err)
-	}
-
-	// Expand environment variables in YAML
-	expandedData := []byte(os.ExpandEnv(string(data)))
-
-	config := &Config{}
-	if err := yaml.Unmarshal(expandedData, config); err != nil {
-		return nil, fmt.Errorf("error parsing YAML: %v", err)
-	}
-
-	return config, nil
-}
-
-// CLIFlags holds all command line arguments
-type CLIFlags struct {
-	ConfigFile     string
-	ServerHost     string
-	ServerPort     int
-	MongoURI       string
-	MongoDatabase  string
-	LogLevel       string
-	TLSEnabled     bool
-	TLSCertFile    string
-	TLSKeyFile     string
-	JWTSecret      string
-	AdminUsername  string
-	AdminPassword  string
-}
-
-func parseFlags() *CLIFlags {
-	flags := &CLIFlags{}
-
-	// Configuration file
-	flag.StringVar(&flags.ConfigFile, "config", "config/config.yaml", "Path to configuration file")
-
-	// Server settings
-	flag.StringVar(&flags.ServerHost, "host", "", "Server host address")
-	flag.IntVar(&flags.ServerPort, "port", 0, "Server port")
-
-	// MongoDB settings
-	flag.StringVar(&flags.MongoURI, "mongo-uri", "", "MongoDB URI")
-	flag.StringVar(&flags.MongoDatabase, "mongo-db", "", "MongoDB database name")
-
-	// Logging
-	flag.StringVar(&flags.LogLevel, "log-level", "", "Log level (debug, info, warn, error)")
-
-	// TLS settings
-	flag.BoolVar(&flags.TLSEnabled, "tls", false, "Enable TLS")
-	flag.StringVar(&flags.TLSCertFile, "tls-cert", "", "TLS certificate file path")
-	flag.StringVar(&flags.TLSKeyFile, "tls-key", "", "TLS key file path")
-
-	// Security settings
-	flag.StringVar(&flags.JWTSecret, "jwt-secret", "", "JWT secret key")
-	flag.StringVar(&flags.AdminUsername, "admin-user", "", "Default admin username")
-	flag.StringVar(&flags.AdminPassword, "admin-pass", "", "Default admin password")
-
-	// Parse flags
-	flag.Parse()
-
-	return flags
-}
-
-// mergeConfig merges configuration from different sources
-func mergeConfig(config *Config, flags *CLIFlags) {
-	// Override with CLI flags if provided
-	if flags.ServerHost != "" {
-		config.Server.Host = flags.ServerHost
-	}
-	if flags.ServerPort != 0 {
-		config.Server.Port = flags.ServerPort
-	}
-	if flags.MongoURI != "" {
-		config.MongoDB.URI = flags.MongoURI
-	}
-	if flags.MongoDatabase != "" {
-		config.MongoDB.Database = flags.MongoDatabase
-	}
-	if flags.LogLevel != "" {
-		config.Logging.Level = flags.LogLevel
-	}
-	if flags.TLSEnabled {
-		config.Server.TLS.Enabled = true
-		if flags.TLSCertFile != "" {
-			config.Server.TLS.CertFile = flags.TLSCertFile
-		}
-		if flags.TLSKeyFile != "" {
-			config.Server.TLS.KeyFile = flags.TLSKeyFile
-		}
-	}
-	if flags.JWTSecret != "" {
-		config.Auth.JWTSecret = flags.JWTSecret
-	}
-	if flags.AdminUsername != "" {
-		config.Admin.DefaultUsername = flags.AdminUsername
-	}
-	if flags.AdminPassword != "" {
-		config.Admin.DefaultPassword = flags.AdminPassword
-	}
-}
-
 func main() {
 	// Parse command line flags
-	flags := parseFlags()
+	flags := config.ParseFlags()
+
+	// Check if this is a setup command
+	if len(os.Args) > 1 && os.Args[1] == "setup" {
+		setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
+		skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
+		setupCmd.Parse(os.Args[2:])
+		
+		if err := setup.RunSetup(*skipPrompts); err != nil {
+			fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// Load configuration
-	config, err := loadConfig(flags.ConfigFile)
+	cfg, err := config.LoadConfig(flags.ConfigFile)
 	if err != nil {
 		logger.Fatal("Error loading config", zap.Error(err))
 	}
 
 	// Merge configurations
-	mergeConfig(config, flags)
+	config.MergeConfig(cfg, flags)
 
 	// Initialize Logger
-	if err := logger.Initialize(config.Logging.Level); err != nil {
+	if err := logger.Initialize(cfg.Logging.Level); err != nil {
 		logger.Fatal("Failed to initialize logger", zap.Error(err))
 	}
 	defer logger.Sync()
 
 	// Log startup configuration (excluding sensitive data)
 	logger.Info("Starting server with configuration",
-		zap.String("host", config.Server.Host),
-		zap.Int("port", config.Server.Port),
-		zap.String("mongodb_database", config.MongoDB.Database),
-		zap.String("log_level", config.Logging.Level),
-		zap.Bool("tls_enabled", config.Server.TLS.Enabled))
+		zap.String("host", cfg.Server.Host),
+		zap.Int("port", cfg.Server.Port),
+		zap.String("mongodb_database", cfg.MongoDB.Database),
+		zap.String("log_level", cfg.Logging.Level),
+		zap.Bool("tls_enabled", cfg.Server.TLS.Enabled))
 
 	// Connect to MongoDB
-	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
+	if err := mongodb.Connect(cfg.MongoDB.URI); err != nil {
 		logger.Fatal("Error connecting to MongoDB", zap.Error(err))
 	}
 
@@ -232,7 +80,7 @@ func main() {
 	go admin.CleanupLoginAttempts(ctx)
 
 	// Run migrations
-	db := mongodb.Client.Database(config.MongoDB.Database)
+	db := mongodb.Client.Database(cfg.MongoDB.Database)
 	allMigrations := []migrations.Migration{
 		migrations.Migration0001,
 	}
@@ -242,29 +90,53 @@ func main() {
 	}
 
 	// Ensure admin user exists
+	ensureAdminUser(db, cfg)
+
+	// Create Echo instance and set up middleware
+	e := echo.New()
+
+	// Initialize rate limiter
+	rateLimiter := customMiddleware.NewRateLimiter(
+		cfg.Security.RateLimiting.MaxAttempts,
+		time.Duration(cfg.Security.RateLimiting.WindowSeconds)*time.Second,
+		time.Duration(cfg.Security.RateLimiting.BlockoutMinutes)*time.Minute,
+	)
+
+	setupRoutes(e, rateLimiter)
+
+	// Serve static files for React frontend (if available)
+	if cfg.Server.StaticDir != "" {
+		e.Static("/", cfg.Server.StaticDir)
+	}
+
+	// Start server
+	startServer(e, cfg)
+}
+
+func ensureAdminUser(db *mongo.Database, cfg *config.Config) {
 	adminCollection := db.Collection("admins")
 	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelTimeout()
 
 	passwordPolicy := models.PasswordPolicy{
-		MinLength:        config.Security.PasswordPolicy.MinLength,
-		RequireUppercase: config.Security.PasswordPolicy.RequireUppercase,
-		RequireLowercase: config.Security.PasswordPolicy.RequireLowercase,
-		RequireNumbers:   config.Security.PasswordPolicy.RequireNumbers,
-		RequireSpecial:   config.Security.PasswordPolicy.RequireSpecial,
+		MinLength:        cfg.Security.PasswordPolicy.MinLength,
+		RequireUppercase: cfg.Security.PasswordPolicy.RequireUppercase,
+		RequireLowercase: cfg.Security.PasswordPolicy.RequireLowercase,
+		RequireNumbers:   cfg.Security.PasswordPolicy.RequireNumbers,
+		RequireSpecial:   cfg.Security.PasswordPolicy.RequireSpecial,
 	}
 
 	var adminUser models.Admin
-	err = adminCollection.FindOne(ctxTimeout, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser)
+	err := adminCollection.FindOne(ctxTimeout, bson.M{"username": cfg.Admin.DefaultUsername}).Decode(&adminUser)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword, passwordPolicy)
+			hashedPassword, err := admin.GenerateHashPassword(cfg.Admin.DefaultPassword, passwordPolicy)
 			if err != nil {
 				logger.Fatal("Failed to hash default admin password", zap.Error(err))
 			}
 
 			_, err = adminCollection.InsertOne(ctxTimeout, models.Admin{
-				Username:  config.Admin.DefaultUsername,
+				Username:  cfg.Admin.DefaultUsername,
 				Password:  hashedPassword,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -276,17 +148,9 @@ func main() {
 			logger.Error("Error checking for admin user", zap.Error(err))
 		}
 	}
+}
 
-	// Create Echo instance and set up middleware
-	e := echo.New()
-
-	// Initialize rate limiter
-	rateLimiter := customMiddleware.NewRateLimiter(
-		config.Security.RateLimiting.MaxAttempts,
-		time.Duration(config.Security.RateLimiting.WindowSeconds)*time.Second,
-		time.Duration(config.Security.RateLimiting.BlockoutMinutes)*time.Minute,
-	)
-
+func setupRoutes(e *echo.Echo, rateLimiter customMiddleware.RateLimiter) {
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
 	adminRoutes.Use(customMiddleware.AdminAuthMiddleware(rateLimiter))
@@ -308,34 +172,31 @@ func main() {
 	agentRoutes.POST("/task/create", handlers.CreateTask, customMiddleware.RequestValidationMiddleware)
 	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
 	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
+}
 
-	// Serve static files for React frontend (if available)
-	if config.Server.StaticDir != "" {
-		e.Static("/", config.Server.StaticDir)
-	}
-
-	addr := fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
+func startServer(e *echo.Echo, cfg *config.Config) {
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := &http.Server{
 		Addr:    addr,
 		Handler: e,
 	}
 
-	if config.Server.TLS.Enabled {
+	if cfg.Server.TLS.Enabled {
 		// Check if TLS cert and key files exist
-		if _, err := os.Stat(config.Server.TLS.CertFile); os.IsNotExist(err) {
-			logger.Fatal("TLS certificate file not found", zap.String("path", config.Server.TLS.CertFile))
+		if _, err := os.Stat(cfg.Server.TLS.CertFile); os.IsNotExist(err) {
+			logger.Fatal("TLS certificate file not found", zap.String("path", cfg.Server.TLS.CertFile))
 		}
-		if _, err := os.Stat(config.Server.TLS.KeyFile); os.IsNotExist(err) {
-			logger.Fatal("TLS key file not found", zap.String("path", config.Server.TLS.KeyFile))
+		if _, err := os.Stat(cfg.Server.TLS.KeyFile); os.IsNotExist(err) {
+			logger.Fatal("TLS key file not found", zap.String("path", cfg.Server.TLS.KeyFile))
 		}
 
 		// Configure TLS settings
-		if err := configureTLS(server, config); err != nil {
+		if err := configureTLS(server, cfg); err != nil {
 			logger.Fatal("Error configuring TLS", zap.Error(err))
 		}
 
 		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
-		if err := e.StartTLS(addr, config.Server.TLS.CertFile, config.Server.TLS.KeyFile); err != nil {
+		if err := e.StartTLS(addr, cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile); err != nil {
 			logger.Fatal("Error starting TLS server", zap.Error(err))
 		}
 	} else {
@@ -358,14 +219,13 @@ func main() {
 	}()
 }
 
-// configureTLS configures the TLS settings for the server.
-func configureTLS(server *http.Server, config *Config) error {
-	minVersion, err := parseTLSVersion(config.Server.TLS.MinVersion)
+func configureTLS(server *http.Server, cfg *config.Config) error {
+	minVersion, err := parseTLSVersion(cfg.Server.TLS.MinVersion)
 	if err != nil {
 		return fmt.Errorf("invalid TLS version: %w", err)
 	}
 
-	cipherSuites, err := parseCipherSuites(config.Server.TLS.CipherSuites)
+	cipherSuites, err := parseCipherSuites(cfg.Server.TLS.CipherSuites)
 	if err != nil {
 		return fmt.Errorf("invalid cipher suites: %w", err)
 	}

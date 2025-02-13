@@ -1,0 +1,1524 @@
+Repository Documentation
+This document provides an overview of the repository's structure and contents.
+The 'Directory/File Tree' section displays the repository's hierarchy.
+The 'File Content' section details the contents of each file.
+File contents are marked with '[File Begins]' and '[File Ends]' tags.
+
+Directory/File Tree Begins -->
+
+cmd
+    └── internal
+        └── setup
+            └── config.go
+            └── mongo.go
+            └── ssl.go
+    └── manager
+        └── main.go
+    └── setup
+        └── setup.go
+
+<-- Directory/File Tree Ends
+
+File Content Begins -->
+
+[File Begins] internal\setup\config.go
+package config
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
+)
+
+// RateLimiterConfig holds rate limiting configuration
+type RateLimiterConfig struct {
+	MaxAttempts     int `yaml:"max_attempts"`
+	WindowSeconds   int `yaml:"window_seconds"`
+	BlockoutMinutes int `yaml:"blockout_minutes"`
+}
+
+// Config holds all configuration settings
+type Config struct {
+	Server struct {
+		Host      string `yaml:"host"`
+		Port      int    `yaml:"port"`
+		StaticDir string `yaml:"static_dir"`
+		TLS       struct {
+			Enabled      bool     `yaml:"enabled"`
+			CertFile     string   `yaml:"cert_file"`
+			KeyFile      string   `yaml:"key_file"`
+			MinVersion   string   `yaml:"min_version"`
+			CipherSuites []string `yaml:"cipher_suites"`
+		} `yaml:"tls"`
+	} `yaml:"server"`
+	Security struct {
+		PasswordPolicy struct {
+			MinLength        int  `yaml:"min_length"`
+			RequireUppercase bool `yaml:"require_uppercase"`
+			RequireLowercase bool `yaml:"require_lowercase"`
+			RequireNumbers   bool `yaml:"require_numbers"`
+			RequireSpecial   bool `yaml:"require_special"`
+		} `yaml:"password_policy"`
+		RateLimiting RateLimiterConfig `yaml:"rate_limiting"`
+	} `yaml:"security"`
+	MongoDB struct {
+		URI      string `yaml:"uri"`
+		Database string `yaml:"database"`
+	} `yaml:"mongodb"`
+	Auth struct {
+		JWTSecret            string `yaml:"jwt_secret"`
+		TokenExpirationHours int    `yaml:"token_expiration_hours"`
+		APIKey               string `yaml:"api_key"`
+		APISecret            string `yaml:"api_secret"`
+	} `yaml:"auth"`
+	Admin struct {
+		DefaultUsername string `yaml:"default_username"`
+		DefaultPassword string `yaml:"default_password"`
+	} `yaml:"admin"`
+	Logging struct {
+		Level string `yaml:"level"`
+	} `yaml:"logging"`
+}
+
+// CLIFlags holds all command line arguments
+type CLIFlags struct {
+	ConfigFile     string
+	ServerHost     string
+	ServerPort     int
+	MongoURI       string
+	MongoDatabase  string
+	LogLevel       string
+	TLSEnabled     bool
+	TLSCertFile    string
+	TLSKeyFile     string
+	JWTSecret      string
+	AdminUsername  string
+	AdminPassword  string
+}
+
+// LoadConfig loads configuration from files and environment variables
+func LoadConfig(filename string) (*Config, error) {
+	// Load .env file if it exists
+	godotenv.Load()
+
+	// Read YAML file
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	// Expand environment variables in YAML
+	expandedData := []byte(os.ExpandEnv(string(data)))
+
+	config := &Config{}
+	if err := yaml.Unmarshal(expandedData, config); err != nil {
+		return nil, fmt.Errorf("error parsing YAML: %w", err)
+	}
+
+	// Set defaults for any missing values
+	setConfigDefaults(config)
+
+	// Validate configuration
+	if err := validateConfig(config); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	return config, nil
+}
+
+// ParseFlags parses command line arguments
+func ParseFlags() *CLIFlags {
+	flags := &CLIFlags{}
+
+	// Configuration file
+	flag.StringVar(&flags.ConfigFile, "config", "config/config.yaml", "Path to configuration file")
+
+	// Server settings
+	flag.StringVar(&flags.ServerHost, "host", "", "Server host address")
+	flag.IntVar(&flags.ServerPort, "port", 0, "Server port")
+
+	// MongoDB settings
+	flag.StringVar(&flags.MongoURI, "mongo-uri", "", "MongoDB URI")
+	flag.StringVar(&flags.MongoDatabase, "mongo-db", "", "MongoDB database name")
+
+	// Logging
+	flag.StringVar(&flags.LogLevel, "log-level", "", "Log level (debug, info, warn, error)")
+
+	// TLS settings
+	flag.BoolVar(&flags.TLSEnabled, "tls", false, "Enable TLS")
+	flag.StringVar(&flags.TLSCertFile, "tls-cert", "", "TLS certificate file path")
+	flag.StringVar(&flags.TLSKeyFile, "tls-key", "", "TLS key file path")
+
+	// Security settings
+	flag.StringVar(&flags.JWTSecret, "jwt-secret", "", "JWT secret key")
+	flag.StringVar(&flags.AdminUsername, "admin-user", "", "Default admin username")
+	flag.StringVar(&flags.AdminPassword, "admin-pass", "", "Default admin password")
+
+	flag.Parse()
+
+	return flags
+}
+
+// MergeConfig merges configuration from different sources
+func MergeConfig(config *Config, flags *CLIFlags) {
+	if flags.ServerHost != "" {
+		config.Server.Host = flags.ServerHost
+	}
+	if flags.ServerPort != 0 {
+		config.Server.Port = flags.ServerPort
+	}
+	if flags.MongoURI != "" {
+		config.MongoDB.URI = flags.MongoURI
+	}
+	if flags.MongoDatabase != "" {
+		config.MongoDB.Database = flags.MongoDatabase
+	}
+	if flags.LogLevel != "" {
+		config.Logging.Level = flags.LogLevel
+	}
+	if flags.TLSEnabled {
+		config.Server.TLS.Enabled = true
+		if flags.TLSCertFile != "" {
+			config.Server.TLS.CertFile = flags.TLSCertFile
+		}
+		if flags.TLSKeyFile != "" {
+			config.Server.TLS.KeyFile = flags.TLSKeyFile
+		}
+	}
+	if flags.JWTSecret != "" {
+		config.Auth.JWTSecret = flags.JWTSecret
+	}
+	if flags.AdminUsername != "" {
+		config.Admin.DefaultUsername = flags.AdminUsername
+	}
+	if flags.AdminPassword != "" {
+		config.Admin.DefaultPassword = flags.AdminPassword
+	}
+}
+
+// setConfigDefaults sets default values for configuration
+func setConfigDefaults(config *Config) {
+	if config.Server.Host == "" {
+		config.Server.Host = "0.0.0.0"
+	}
+	if config.Server.Port == 0 {
+		config.Server.Port = 8080
+	}
+	if config.Server.StaticDir == "" {
+		config.Server.StaticDir = "./frontend/build"
+	}
+	if config.Auth.TokenExpirationHours == 0 {
+		config.Auth.TokenExpirationHours = 24
+	}
+	if config.Logging.Level == "" {
+		config.Logging.Level = "info"
+	}
+	if config.Security.PasswordPolicy.MinLength == 0 {
+		config.Security.PasswordPolicy.MinLength = 8
+	}
+	if config.Security.RateLimiting.MaxAttempts == 0 {
+		config.Security.RateLimiting.MaxAttempts = 5
+	}
+	if config.Security.RateLimiting.WindowSeconds == 0 {
+		config.Security.RateLimiting.WindowSeconds = 300 // 5 minutes
+	}
+	if config.Security.RateLimiting.BlockoutMinutes == 0 {
+		config.Security.RateLimiting.BlockoutMinutes = 15
+	}
+}
+
+// validateConfig checks if the configuration is valid
+func validateConfig(config *Config) error {
+	var errors []string
+
+	// Validate MongoDB configuration
+	if config.MongoDB.URI == "" {
+		errors = append(errors, "MongoDB URI is required")
+	}
+	if config.MongoDB.Database == "" {
+		errors = append(errors, "MongoDB database name is required")
+	}
+
+	// Validate TLS configuration if enabled
+	if config.Server.TLS.Enabled {
+		if config.Server.TLS.CertFile == "" {
+			errors = append(errors, "TLS certificate file is required when TLS is enabled")
+		}
+		if config.Server.TLS.KeyFile == "" {
+			errors = append(errors, "TLS key file is required when TLS is enabled")
+		}
+	}
+
+	// Validate authentication configuration
+	if config.Auth.JWTSecret == "" {
+		errors = append(errors, "JWT secret is required")
+	}
+	if config.Admin.DefaultUsername == "" {
+		errors = append(errors, "Default admin username is required")
+	}
+	if config.Admin.DefaultPassword == "" {
+		errors = append(errors, "Default admin password is required")
+	}
+
+	// Validate password policy
+	if config.Security.PasswordPolicy.MinLength < 8 {
+		errors = append(errors, "Password minimum length must be at least 8 characters")
+	}
+
+	// Validate rate limiting
+	if config.Security.RateLimiting.MaxAttempts < 1 {
+		errors = append(errors, "Rate limiting max attempts must be at least 1")
+	}
+	if config.Security.RateLimiting.WindowSeconds < 1 {
+		errors = append(errors, "Rate limiting window must be at least 1 second")
+	}
+	if config.Security.RateLimiting.BlockoutMinutes < 1 {
+		errors = append(errors, "Rate limiting blockout period must be at least 1 minute")
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("configuration validation errors:\n- %s", strings.Join(errors, "\n- "))
+	}
+
+	return nil
+}
+
+// WriteConfig writes the configuration to a YAML file
+func WriteConfig(config *Config, filename string) error {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("error marshaling config: %w", err)
+	}
+
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return fmt.Errorf("error writing config file: %w", err)
+	}
+
+	return nil
+}
+[File Ends] internal\setup\config.go
+[File Begins] internal\setup\mongo.go
+package setup
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
+)
+
+// SetupMongoDB initializes the MongoDB instance with required users and collections
+func SetupMongoDB(config *Config) error {
+	ctx := context.Background()
+
+	// Connect to MongoDB without auth first to create user
+	mongoURI := fmt.Sprintf("mongodb://%s:%d", config.MongoHost, config.MongoPort)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Ping MongoDB to verify connection
+	if err := client.Ping(ctx, nil); err != nil {
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	// Create the database user
+	if err := createDatabaseUser(ctx, client, config); err != nil {
+		return fmt.Errorf("failed to create database user: %w", err)
+	}
+
+	// Reconnect with the new user credentials
+	authURI := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+		config.MongoUser,
+		config.MongoPass,
+		config.MongoHost,
+		config.MongoPort,
+		config.MongoDatabase,
+	)
+	authClient, err := mongo.Connect(ctx, options.Client().ApplyURI(authURI))
+	if err != nil {
+		return fmt.Errorf("failed to connect with authentication: %w", err)
+	}
+	defer authClient.Disconnect(ctx)
+
+	// Initialize database schema
+	if err := initializeSchema(ctx, authClient, config); err != nil {
+		return fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	return nil
+}
+
+// createDatabaseUser creates a new MongoDB user with appropriate permissions
+func createDatabaseUser(ctx context.Context, client *mongo.Client, config *Config) error {
+	cmd := bson.D{
+		{Key: "createUser", Value: config.MongoUser},
+		{Key: "pwd", Value: config.MongoPass},
+		{Key: "roles", Value: bson.A{
+			bson.D{
+				{Key: "role", Value: "readWrite"},
+				{Key: "db", Value: config.MongoDatabase},
+			},
+		}},
+	}
+
+	err := client.Database(config.MongoDatabase).RunCommand(ctx, cmd).Err()
+	if err != nil {
+		return fmt.Errorf("failed to create MongoDB user: %w", err)
+	}
+
+	return nil
+}
+
+// initializeSchema creates all necessary collections and indexes
+func initializeSchema(ctx context.Context, client *mongo.Client, config *Config) error {
+	db := client.Database(config.MongoDatabase)
+
+	// Create collections
+	collections := []string{
+		"admins",
+		"agents",
+		"roles",
+		"tasks",
+		"logs",
+	}
+
+	for _, collName := range collections {
+		if err := createCollection(ctx, db, collName); err != nil {
+			return fmt.Errorf("failed to create collection %s: %w", collName, err)
+		}
+	}
+
+	// Create indexes
+	if err := createIndexes(ctx, db); err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+
+	// Create initial admin user
+	if err := createAdminUser(ctx, db, config); err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	// Create default role
+	if err := createDefaultRole(ctx, db); err != nil {
+		return fmt.Errorf("failed to create default role: %w", err)
+	}
+
+	return nil
+}
+
+// createCollection creates a new collection if it doesn't exist
+func createCollection(ctx context.Context, db *mongo.Database, name string) error {
+	err := db.CreateCollection(ctx, name)
+	if err != nil {
+		// Ignore error if collection already exists
+		if !mongo.IsDuplicateKeyError(err) {
+			return fmt.Errorf("failed to create collection %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// createIndexes creates all required indexes for the collections
+func createIndexes(ctx context.Context, db *mongo.Database) error {
+	// Admins collection indexes
+	adminIndexes := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "username", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+	}
+	if err := createCollectionIndexes(ctx, db, "admins", adminIndexes); err != nil {
+		return err
+	}
+
+	// Agents collection indexes
+	agentIndexes := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "uuid", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys:    bson.D{{Key: "api_key", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys: bson.D{{Key: "last_seen", Value: 1}},
+		},
+	}
+	if err := createCollectionIndexes(ctx, db, "agents", agentIndexes); err != nil {
+		return err
+	}
+
+	// Tasks collection indexes
+	taskIndexes := []mongo.IndexModel{
+		{
+			Keys: bson.D{{Key: "agent_id", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "status", Value: 1}},
+		},
+		{
+			Keys: bson.D{{Key: "created_at", Value: 1}},
+		},
+	}
+	if err := createCollectionIndexes(ctx, db, "tasks", taskIndexes); err != nil {
+		return err
+	}
+
+	// Logs collection indexes (with TTL)
+	logIndexes := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "timestamp", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(30 * 24 * 60 * 60), // 30 days TTL
+		},
+	}
+	if err := createCollectionIndexes(ctx, db, "logs", logIndexes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createCollectionIndexes creates indexes for a specific collection
+func createCollectionIndexes(ctx context.Context, db *mongo.Database, collection string, indexes []mongo.IndexModel) error {
+	_, err := db.Collection(collection).Indexes().CreateMany(ctx, indexes)
+	if err != nil {
+		return fmt.Errorf("failed to create indexes for collection %s: %w", collection, err)
+	}
+	return nil
+}
+
+// createAdminUser creates the initial admin user
+func createAdminUser(ctx context.Context, db *mongo.Database, config *Config) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPass), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	adminUser := bson.D{
+		{Key: "username", Value: config.AdminUser},
+		{Key: "password", Value: string(hashedPassword)},
+		{Key: "created_at", Value: time.Now()},
+		{Key: "updated_at", Value: time.Now()},
+	}
+
+	_, err = db.Collection("admins").InsertOne(ctx, adminUser)
+	if err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	return nil
+}
+
+// createDefaultRole creates the default worker role
+func createDefaultRole(ctx context.Context, db *mongo.Database) error {
+	defaultRole := bson.D{
+		{Key: "name", Value: "worker"},
+		{Key: "description", Value: "Default worker role"},
+		{Key: "created_at", Value: time.Now()},
+		{Key: "permissions", Value: bson.A{
+			"execute_tasks",
+			"report_status",
+		}},
+	}
+
+	_, err := db.Collection("roles").InsertOne(ctx, defaultRole)
+	if err != nil {
+		return fmt.Errorf("failed to create default role: %w", err)
+	}
+
+	return nil
+}
+[File Ends] internal\setup\mongo.go
+[File Begins] internal\setup\ssl.go
+package setup
+
+import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// SSLConfig holds configuration for SSL certificate generation
+type SSLConfig struct {
+	Organization     string
+	ValidityDays     int
+	KeySize          int
+	CertificateFile  string
+	PrivateKeyFile   string
+	AdditionalHosts  []string
+	AdditionalIPs    []string
+}
+
+// DefaultSSLConfig returns the default SSL configuration
+func DefaultSSLConfig(certFile, keyFile string) *SSLConfig {
+	return &SSLConfig{
+		Organization:    "Manager",
+		ValidityDays:   365,
+		KeySize:        2048,
+		CertificateFile: certFile,
+		PrivateKeyFile:  keyFile,
+		AdditionalHosts: []string{},
+		AdditionalIPs:   []string{},
+	}
+}
+
+// GenerateSSLCertificate generates a self-signed SSL certificate
+func GenerateSSLCertificate(config *Config) error {
+	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
+	return generateCertificate(sslConfig)
+}
+
+// generateCertificate handles the actual certificate generation process
+func generateCertificate(config *SSLConfig) error {
+	// Create certificate directory if it doesn't exist
+	certDir := filepath.Dir(config.CertificateFile)
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		return fmt.Errorf("failed to create certificate directory: %w", err)
+	}
+
+	// Generate private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, config.KeySize)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	// Prepare certificate template
+	template, err := createCertificateTemplate(config)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate template: %w", err)
+	}
+
+	// Create certificate
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		template,
+		template,
+		&privateKey.PublicKey,
+		privateKey,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	// Write certificate to file
+	if err := writeCertificateToFile(config.CertificateFile, derBytes); err != nil {
+		return fmt.Errorf("failed to write certificate file: %w", err)
+	}
+
+	// Write private key to file
+	if err := writePrivateKeyToFile(config.PrivateKeyFile, privateKey); err != nil {
+		return fmt.Errorf("failed to write private key file: %w", err)
+	}
+
+	return nil
+}
+
+// createCertificateTemplate creates an x509 certificate template with appropriate settings
+func createCertificateTemplate(config *SSLConfig) (*x509.Certificate, error) {
+	serialNumber, err := generateSerialNumber()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
+	}
+
+	// Prepare IP addresses
+	ipAddresses := []net.IP{net.ParseIP("127.0.0.1")}
+	for _, ip := range config.AdditionalIPs {
+		if parsedIP := net.ParseIP(ip); parsedIP != nil {
+			ipAddresses = append(ipAddresses, parsedIP)
+		}
+	}
+
+	// Prepare DNS names
+	dnsNames := []string{"localhost"}
+	dnsNames = append(dnsNames, config.AdditionalHosts...)
+
+	now := time.Now()
+	template := &x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{config.Organization},
+			CommonName:   "localhost",
+		},
+		NotBefore:             now,
+		NotAfter:              now.Add(time.Duration(config.ValidityDays) * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:           ipAddresses,
+		DNSNames:             dnsNames,
+	}
+
+	return template, nil
+}
+
+// generateSerialNumber generates a random serial number for the certificate
+func generateSerialNumber() (*big.Int, error) {
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
+	}
+	return serialNumber, nil
+}
+
+// writeCertificateToFile writes the certificate to a PEM file
+func writeCertificateToFile(filename string, derBytes []byte) error {
+	certOut, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate file: %w", err)
+	}
+	defer certOut.Close()
+
+	if err := pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	}); err != nil {
+		return fmt.Errorf("failed to write certificate file: %w", err)
+	}
+
+	return nil
+}
+
+// writePrivateKeyToFile writes the private key to a PEM file
+func writePrivateKeyToFile(filename string, privateKey *rsa.PrivateKey) error {
+	keyOut, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create private key file: %w", err)
+	}
+	defer keyOut.Close()
+
+	if err := pem.Encode(keyOut, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}); err != nil {
+		return fmt.Errorf("failed to write private key file: %w", err)
+	}
+
+	return nil
+}
+
+// ValidateSSLCertificate checks if the certificate and key files exist and are valid
+func ValidateSSLCertificate(config *Config) error {
+	// Check certificate file
+	certData, err := os.ReadFile(config.TLSCertFile)
+	if err != nil {
+		return fmt.Errorf("failed to read certificate file: %w", err)
+	}
+
+	// Parse certificate
+	certBlock, _ := pem.Decode(certData)
+	if certBlock == nil {
+		return fmt.Errorf("failed to decode certificate PEM")
+	}
+
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	// Check private key file
+	keyData, err := os.ReadFile(config.TLSKeyFile)
+	if err != nil {
+		return fmt.Errorf("failed to read private key file: %w", err)
+	}
+
+	// Parse private key
+	keyBlock, _ := pem.Decode(keyData)
+	if keyBlock == nil {
+		return fmt.Errorf("failed to decode private key PEM")
+	}
+
+	_, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	// Check certificate expiration
+	if time.Now().After(cert.NotAfter) {
+		return fmt.Errorf("certificate has expired")
+	}
+
+	return nil
+}
+
+// AddHostToSSLCertificate regenerates the SSL certificate with an additional host
+func AddHostToSSLCertificate(config *Config, hostname string) error {
+	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
+	sslConfig.AdditionalHosts = append(sslConfig.AdditionalHosts, hostname)
+	return generateCertificate(sslConfig)
+}
+
+// AddIPToSSLCertificate regenerates the SSL certificate with an additional IP address
+func AddIPToSSLCertificate(config *Config, ip string) error {
+	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
+	sslConfig.AdditionalIPs = append(sslConfig.AdditionalIPs, ip)
+	return generateCertificate(sslConfig)
+}
+[File Ends] internal\setup\ssl.go
+[File Begins] manager\main.go
+package main
+
+import (
+	"context"
+	"crypto/tls"
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.uber.org/zap"
+
+	"github.com/whit3rabbit/beehive/manager/api/admin"
+	"github.com/whit3rabbit/beehive/manager/api/handlers"
+	"github.com/whit3rabbit/beehive/manager/internal/config"
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/internal/setup"
+	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
+	"github.com/whit3rabbit/beehive/manager/migrations"
+	"github.com/whit3rabbit/beehive/manager/models"
+)
+
+func main() {
+	// Parse command line flags
+	flags := config.ParseFlags()
+
+	// Check if this is a setup command
+	if len(os.Args) > 1 && os.Args[1] == "setup" {
+		setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
+		skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
+		setupCmd.Parse(os.Args[2:])
+		
+		if err := setup.RunSetup(*skipPrompts); err != nil {
+			fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Load configuration
+	cfg, err := config.LoadConfig(flags.ConfigFile)
+	if err != nil {
+		logger.Fatal("Error loading config", zap.Error(err))
+	}
+
+	// Merge configurations
+	config.MergeConfig(cfg, flags)
+
+	// Initialize Logger
+	if err := logger.Initialize(cfg.Logging.Level); err != nil {
+		logger.Fatal("Failed to initialize logger", zap.Error(err))
+	}
+	defer logger.Sync()
+
+	// Log startup configuration (excluding sensitive data)
+	logger.Info("Starting server with configuration",
+		zap.String("host", cfg.Server.Host),
+		zap.Int("port", cfg.Server.Port),
+		zap.String("mongodb_database", cfg.MongoDB.Database),
+		zap.String("log_level", cfg.Logging.Level),
+		zap.Bool("tls_enabled", cfg.Server.TLS.Enabled))
+
+	// Connect to MongoDB
+	if err := mongodb.Connect(cfg.MongoDB.URI); err != nil {
+		logger.Fatal("Error connecting to MongoDB", zap.Error(err))
+	}
+
+	// Create root context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start cleanup routine for login attempts
+	go admin.CleanupLoginAttempts(ctx)
+
+	// Run migrations
+	db := mongodb.Client.Database(cfg.MongoDB.Database)
+	allMigrations := []migrations.Migration{
+		migrations.Migration0001,
+	}
+
+	if err := migrations.RunMigrations(db, allMigrations); err != nil {
+		logger.Fatal("Error running migrations", zap.Error(err))
+	}
+
+	// Ensure admin user exists
+	ensureAdminUser(db, cfg)
+
+	// Create Echo instance and set up middleware
+	e := echo.New()
+
+	// Initialize rate limiter
+	rateLimiter := customMiddleware.NewRateLimiter(
+		cfg.Security.RateLimiting.MaxAttempts,
+		time.Duration(cfg.Security.RateLimiting.WindowSeconds)*time.Second,
+		time.Duration(cfg.Security.RateLimiting.BlockoutMinutes)*time.Minute,
+	)
+
+	setupRoutes(e, rateLimiter)
+
+	// Serve static files for React frontend (if available)
+	if cfg.Server.StaticDir != "" {
+		e.Static("/", cfg.Server.StaticDir)
+	}
+
+	// Start server
+	startServer(e, cfg)
+}
+
+func ensureAdminUser(db *mongo.Database, cfg *config.Config) {
+	adminCollection := db.Collection("admins")
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelTimeout()
+
+	passwordPolicy := models.PasswordPolicy{
+		MinLength:        cfg.Security.PasswordPolicy.MinLength,
+		RequireUppercase: cfg.Security.PasswordPolicy.RequireUppercase,
+		RequireLowercase: cfg.Security.PasswordPolicy.RequireLowercase,
+		RequireNumbers:   cfg.Security.PasswordPolicy.RequireNumbers,
+		RequireSpecial:   cfg.Security.PasswordPolicy.RequireSpecial,
+	}
+
+	var adminUser models.Admin
+	err := adminCollection.FindOne(ctxTimeout, bson.M{"username": cfg.Admin.DefaultUsername}).Decode(&adminUser)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			hashedPassword, err := admin.GenerateHashPassword(cfg.Admin.DefaultPassword, passwordPolicy)
+			if err != nil {
+				logger.Fatal("Failed to hash default admin password", zap.Error(err))
+			}
+
+			_, err = adminCollection.InsertOne(ctxTimeout, models.Admin{
+				Username:  cfg.Admin.DefaultUsername,
+				Password:  hashedPassword,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
+			if err != nil {
+				logger.Fatal("Failed to create initial admin user", zap.Error(err))
+			}
+		} else {
+			logger.Error("Error checking for admin user", zap.Error(err))
+		}
+	}
+}
+
+func setupRoutes(e *echo.Echo, rateLimiter customMiddleware.RateLimiter) {
+	// Admin routes (JWT auth)
+	adminRoutes := e.Group("/admin")
+	adminRoutes.Use(customMiddleware.AdminAuthMiddleware(rateLimiter))
+
+	// Admin protected routes
+	adminRoutes.GET("/roles", handlers.ListRoles)
+	adminRoutes.POST("/roles", handlers.CreateRole)
+	adminRoutes.GET("/roles/:role_id", handlers.GetRole)
+
+	// Agent routes (API key auth)
+	agentRoutes := e.Group("/api")
+	agentRoutes.Use(customMiddleware.APIAuthMiddleware)
+
+	// Agent endpoints
+	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
+	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
+	agentRoutes.GET("/agent/:uuid/summary", handlers.GetAgentSummary)
+	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
+	agentRoutes.POST("/task/create", handlers.CreateTask, customMiddleware.RequestValidationMiddleware)
+	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)
+	agentRoutes.POST("/task/cancel/:task_id", handlers.CancelTask)
+}
+
+func startServer(e *echo.Echo, cfg *config.Config) {
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	server := &http.Server{
+		Addr:    addr,
+		Handler: e,
+	}
+
+	if cfg.Server.TLS.Enabled {
+		// Check if TLS cert and key files exist
+		if _, err := os.Stat(cfg.Server.TLS.CertFile); os.IsNotExist(err) {
+			logger.Fatal("TLS certificate file not found", zap.String("path", cfg.Server.TLS.CertFile))
+		}
+		if _, err := os.Stat(cfg.Server.TLS.KeyFile); os.IsNotExist(err) {
+			logger.Fatal("TLS key file not found", zap.String("path", cfg.Server.TLS.KeyFile))
+		}
+
+		// Configure TLS settings
+		if err := configureTLS(server, cfg); err != nil {
+			logger.Fatal("Error configuring TLS", zap.Error(err))
+		}
+
+		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
+		if err := e.StartTLS(addr, cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile); err != nil {
+			logger.Fatal("Error starting TLS server", zap.Error(err))
+		}
+	} else {
+		logger.Info("Starting server", zap.String("address", "http://"+addr))
+		if err := e.Start(addr); err != nil {
+			logger.Fatal("Error starting server", zap.Error(err))
+		}
+	}
+
+	// Add graceful shutdown handling
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := e.Shutdown(ctx); err != nil {
+			logger.Error("Failed to shutdown server gracefully", zap.Error(err))
+		}
+	}()
+}
+
+func configureTLS(server *http.Server, cfg *config.Config) error {
+	minVersion, err := parseTLSVersion(cfg.Server.TLS.MinVersion)
+	if err != nil {
+		return fmt.Errorf("invalid TLS version: %w", err)
+	}
+
+	cipherSuites, err := parseCipherSuites(cfg.Server.TLS.CipherSuites)
+	if err != nil {
+		return fmt.Errorf("invalid cipher suites: %w", err)
+	}
+
+	server.TLSConfig = &tls.Config{
+		MinVersion:               minVersion,
+		CipherSuites:            cipherSuites,
+		PreferServerCipherSuites: true,
+		CurvePreferences: []tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+		},
+	}
+
+	return nil
+}
+
+// parseTLSVersion parses the TLS version string and returns the corresponding uint16 value.
+func parseTLSVersion(version string) (uint16, error) {
+	switch version {
+	case "1.0":
+		return tls.VersionTLS10, nil
+	case "1.1":
+		return tls.VersionTLS11, nil
+	case "1.2":
+		return tls.VersionTLS12, nil
+	case "1.3":
+		return tls.VersionTLS13, nil
+	default:
+		return 0, fmt.Errorf("unsupported TLS version: %s", version)
+	}
+}
+
+// parseCipherSuites parses the cipher suite strings and returns the corresponding uint16 values.
+func parseCipherSuites(cipherSuites []string) ([]uint16, error) {
+	var suites []uint16
+	for _, suite := range cipherSuites {
+		switch strings.TrimSpace(suite) {
+		case "TLS_RSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_RC4_128_SHA)
+		case "TLS_RSA_WITH_3DES_EDE_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA)
+		case "TLS_RSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_128_CBC_SHA)
+		case "TLS_RSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_256_CBC_SHA)
+		case "TLS_RSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_RSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA)
+		case "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_CHACHA20_POLY1305_SHA256)
+		case "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+		case "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256)
+		default:
+			return nil, fmt.Errorf("unsupported cipher suite: %s", suite)
+		}
+	}
+	return suites, nil
+}
+[File Ends] manager\main.go
+[File Begins] setup\setup.go
+package setup
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type Config struct {
+	ServerHost          string
+	ServerPort          int
+	MongoHost           string
+	MongoPort          int
+	MongoUser          string
+	MongoPass          string
+	MongoDatabase      string
+	AdminUser          string
+	AdminPass          string
+	JWTSecret          string
+	APIKey             string
+	APISecret          string
+	TLSEnabled         bool
+	TLSCertFile        string
+	TLSKeyFile         string
+	LogLevel           string
+}
+
+// RunSetup performs the complete setup process
+func RunSetup(skipPrompts bool) error {
+	config, err := getConfig(skipPrompts)
+	if err != nil {
+		return fmt.Errorf("failed to get configuration: %w", err)
+	}
+
+	// Create necessary directories
+	if err := createDirectories(config); err != nil {
+		return fmt.Errorf("failed to create directories: %w", err)
+	}
+
+	// Generate SSL certificates
+	if err := generateSSLCert(config); err != nil {
+		return fmt.Errorf("failed to generate SSL certificates: %w", err)
+	}
+
+	// Setup MongoDB
+	if err := setupMongoDB(config); err != nil {
+		return fmt.Errorf("failed to setup MongoDB: %w", err)
+	}
+
+	// Write configuration to .env file
+	if err := writeEnvFile(config); err != nil {
+		return fmt.Errorf("failed to write .env file: %w", err)
+	}
+
+	printSummary(config)
+	return nil
+}
+
+func getConfig(skipPrompts bool) (*Config, error) {
+	if skipPrompts {
+		return getDefaultConfig(), nil
+	}
+	return promptForConfig()
+}
+
+func getDefaultConfig() *Config {
+	return &Config{
+		ServerHost:     "0.0.0.0",
+		ServerPort:     8080,
+		MongoHost:      "localhost",
+		MongoPort:      27017,
+		MongoUser:      "manager",
+		MongoPass:      generateSecureString(24),
+		MongoDatabase:  "manager_db",
+		AdminUser:      "admin",
+		AdminPass:      generateSecureString(24),
+		JWTSecret:      generateSecureString(32),
+		APIKey:         generateSecureString(32),
+		APISecret:      generateSecureString(32),
+		TLSEnabled:     true,
+		TLSCertFile:    "certs/server.crt",
+		TLSKeyFile:     "certs/server.key",
+		LogLevel:       "info",
+	}
+}
+
+func promptForConfig() (*Config, error) {
+	config := &Config{}
+	questions := []*survey.Question{
+		{
+			Name: "serverHost",
+			Prompt: &survey.Input{
+				Message: "Server Host:",
+				Default: "0.0.0.0",
+			},
+		},
+		{
+			Name: "serverPort",
+			Prompt: &survey.Input{
+				Message: "Server Port:",
+				Default: "8080",
+			},
+		},
+		{
+			Name: "mongoHost",
+			Prompt: &survey.Input{
+				Message: "MongoDB Host:",
+				Default: "localhost",
+			},
+		},
+		{
+			Name: "mongoPort",
+			Prompt: &survey.Input{
+				Message: "MongoDB Port:",
+				Default: "27017",
+			},
+		},
+		{
+			Name: "mongoUser",
+			Prompt: &survey.Input{
+				Message: "MongoDB Username:",
+				Default: "manager",
+			},
+		},
+		{
+			Name: "adminUser",
+			Prompt: &survey.Input{
+				Message: "Admin Username:",
+				Default: "admin",
+			},
+		},
+		{
+			Name: "logLevel",
+			Prompt: &survey.Select{
+				Message: "Log Level:",
+				Options: []string{"debug", "info", "warn", "error"},
+				Default: "info",
+			},
+		},
+	}
+
+	answers := make(map[string]interface{})
+	if err := survey.Ask(questions, &answers); err != nil {
+		return nil, err
+	}
+
+	// Map answers to config
+	config.ServerHost = answers["serverHost"].(string)
+	config.ServerPort = 8080 // Default port
+	config.MongoHost = answers["mongoHost"].(string)
+	config.MongoPort = 27017 // Default MongoDB port
+	config.MongoUser = answers["mongoUser"].(string)
+	config.MongoPass = generateSecureString(24)
+	config.MongoDatabase = "manager_db"
+	config.AdminUser = answers["adminUser"].(string)
+	config.AdminPass = generateSecureString(24)
+	config.JWTSecret = generateSecureString(32)
+	config.APIKey = generateSecureString(32)
+	config.APISecret = generateSecureString(32)
+	config.TLSEnabled = true
+	config.TLSCertFile = "certs/server.crt"
+	config.TLSKeyFile = "certs/server.key"
+	config.LogLevel = answers["logLevel"].(string)
+
+	return config, nil
+}
+
+func generateSecureString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+	b := make([]byte, length)
+	rand.Read(b)
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
+	}
+	return string(b)
+}
+
+func createDirectories(config *Config) error {
+	dirs := []string{
+		filepath.Dir(config.TLSCertFile),
+		"logs",
+		"data",
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
+func generateSSLCert(config *Config) error {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Manager"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(1, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:          []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:          []net.IP{net.ParseIP("127.0.0.1")},
+		DNSNames:             []string{"localhost"},
+	}
+
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		&template,
+		&template,
+		&privateKey.PublicKey,
+		privateKey,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	certOut, err := os.Create(config.TLSCertFile)
+	if err != nil {
+		return fmt.Errorf("failed to create certificate file: %w", err)
+	}
+	defer certOut.Close()
+
+	if err := pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	}); err != nil {
+		return fmt.Errorf("failed to write certificate: %w", err)
+	}
+
+	keyOut, err := os.OpenFile(config.TLSKeyFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create private key file: %w", err)
+	}
+	defer keyOut.Close()
+
+	if err := pem.Encode(keyOut, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}); err != nil {
+		return fmt.Errorf("failed to write private key: %w", err)
+	}
+
+	return nil
+}
+
+func setupMongoDB(config *Config) error {
+	ctx := context.Background()
+
+	// Connect to MongoDB without auth first
+	mongoURI := fmt.Sprintf("mongodb://%s:%d", config.MongoHost, config.MongoPort)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Create database and user
+	if err := createMongoDBUser(ctx, client, config); err != nil {
+		return fmt.Errorf("failed to create MongoDB user: %w", err)
+	}
+
+	// Reconnect with new user credentials
+	mongoURIWithAuth := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+		config.MongoUser,
+		config.MongoPass,
+		config.MongoHost,
+		config.MongoPort,
+		config.MongoDatabase,
+	)
+	clientWithAuth, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURIWithAuth))
+	if err != nil {
+		return fmt.Errorf("failed to connect with auth: %w", err)
+	}
+	defer clientWithAuth.Disconnect(ctx)
+
+	// Create admin user
+	if err := createAdminUser(ctx, clientWithAuth, config); err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	// Create default worker role
+	if err := createDefaultRole(ctx, clientWithAuth, config); err != nil {
+		return fmt.Errorf("failed to create default role: %w", err)
+	}
+
+	return nil
+}
+
+func createMongoDBUser(ctx context.Context, client *mongo.Client, config *Config) error {
+	cmd := bson.D{
+		{Key: "createUser", Value: config.MongoUser},
+		{Key: "pwd", Value: config.MongoPass},
+		{Key: "roles", Value: bson.A{
+			bson.D{
+				{Key: "role", Value: "readWrite"},
+				{Key: "db", Value: config.MongoDatabase},
+			},
+		}},
+	}
+
+	err := client.Database(config.MongoDatabase).RunCommand(ctx, cmd).Err()
+	if err != nil {
+		return fmt.Errorf("failed to create MongoDB user: %w", err)
+	}
+
+	return nil
+}
+
+func createAdminUser(ctx context.Context, client *mongo.Client, config *Config) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPass), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	collection := client.Database(config.MongoDatabase).Collection("admins")
+	_, err = collection.InsertOne(ctx, bson.M{
+		"username":   config.AdminUser,
+		"password":   string(hashedPassword),
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	return nil
+}
+
+func createDefaultRole(ctx context.Context, client *mongo.Client, config *Config) error {
+	collection := client.Database(config.MongoDatabase).Collection("roles")
+	_, err := collection.InsertOne(ctx, bson.M{
+		"name":        "worker",
+		"description": "Default worker role",
+		"created_at":  time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create default role: %w", err)
+	}
+
+	return nil
+}
+
+func writeEnvFile(config *Config) error {
+	envContent := fmt.Sprintf(`# Server Configuration
+SERVER_HOST=%s
+SERVER_PORT=%d
+STATIC_DIR=./frontend/build
+
+# TLS Configuration
+TLS_ENABLED=%t
+TLS_CERT_FILE=%s
+TLS_KEY_FILE=%s
+
+# MongoDB Configuration
+MONGODB_URI=mongodb://%s:%s@%s:%d/%s
+MONGODB_DATABASE=%s
+
+# Authentication
+JWT_SECRET=%s
+TOKEN_EXPIRATION_HOURS=24
+API_KEY=%s
+API_SECRET=%s
+
+# Admin Configuration
+ADMIN_DEFAULT_USERNAME=%s
+ADMIN_DEFAULT_PASSWORD=%s
+
+# Logging
+LOG_LEVEL=%s
+`,
+		config.ServerHost,
+		config.ServerPort,
+		config.TLSEnabled,
+		config.TLSCertFile,
+		config.TLSKeyFile,
+		config.MongoUser,
+		config.MongoPass,
+		config.MongoHost,
+		config.MongoPort,
+		config.MongoDatabase,
+		config.MongoDatabase,
+		config.JWTSecret,
+		config.APIKey,
+		config.APISecret,
+		config.AdminUser,
+		config.AdminPass,
+		config.LogLevel,
+	)
+
+	return os.WriteFile(".env", []byte(envContent), 0600)
+}
+
+func printSummary(config *Config) {
+	fmt.Println("\nSetup completed successfully!")
+	fmt.Printf("Admin Credentials:\n")
+	fmt.Printf("  Username: %s\n", config.AdminUser)
+	fmt.Printf("  Password: %s\n", config.AdminPass)
+	fmt.Printf("\nMongoDB Credentials:\n")
+	fmt.Printf("  Username: %s\n", config.MongoUser)
+	fmt.Printf("  Password: %s\n", config.MongoPass)
+	fmt.Printf("\nAPI Credentials:\n")
+	fmt.Printf("  API Key: %s\n", config.APIKey)
+	fmt.Printf("  API Secret: %s\n", config.APISecret)
+	fmt.Printf("\nConfiguration has been saved to .env file\n")
+	fmt.Printf("SSL certificates have been generated in %s\n", filepath.Dir(config.TLSCertFile))
+}
+[File Ends] setup\setup.go
+
+<-- File Content Ends
+
