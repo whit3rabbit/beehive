@@ -115,11 +115,11 @@ func RegisterAgent(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to store API key and secret"})
 	}
 
-	response := echo.Map{
-		"api_key":     apiKey, // Return the unhashed API key to the agent
-		"api_secret":  apiSecret, // Return the unhashed API secret to the agent
-		"status":      "registered",
-		"timestamp":   time.Now(),
+	// Update response to use AgentRegistrationResponse
+	response := models.AgentRegistrationResponse{
+		APIKey:    apiKey,     // unhashed
+		Status:    "registered",
+		Timestamp: time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
