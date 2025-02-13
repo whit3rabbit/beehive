@@ -360,6 +360,10 @@ If you have `make` installed, you can use the following commands:
 # Build the application
 make build
 
+# Run tests in docker
+
+make test-integration
+
 # Run tests
 make test
 
