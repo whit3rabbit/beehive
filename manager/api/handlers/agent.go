@@ -30,15 +30,6 @@ type ErrorResponse struct {
 	Details string `json:"details,omitempty"`
 }
 
-type HeartbeatRequest struct {
-    UUID      string    `json:"uuid" validate:"required"`
-}
-
-type HeartbeatResponse struct {
-	Status    string    `json:"status"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
 // hashAPIKey hashes the provided API key using SHA256.
 func hashAPIKey(key string) string {
 	hash := sha256.Sum256([]byte(key))
@@ -180,33 +171,33 @@ func GetAgentSummary(c echo.Context) error {
 // @Failure 500 {object} ErrorResponse
 // @Router /agent/heartbeat [post]
 func AgentHeartbeat(c echo.Context) error {
-	var req models.HeartbeatRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
-	}
+    var req models.HeartbeatRequest
+    if err := c.Bind(&req); err != nil {
+        return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
+    }
 
-	dbName := c.Get("mongodb_database").(string)
-	collection := mongodb.Client.Database(dbName).Collection("agents")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+    dbName := c.Get("mongodb_database").(string)
+    collection := mongodb.Client.Database(dbName).Collection("agents")
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
 
-	update := bson.M{
-		"$set": bson.M{
-			"status":    "active",
-			"last_seen": time.Now(),
-		},
-	}
-	_, err := collection.UpdateOne(ctx, bson.M{"uuid": req.UUID}, update)
-	if err != nil {
-		logger.Error("Failed to update agent heartbeat", zap.Error(err), zap.String("agent_uuid", req.UUID))
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update agent heartbeat"})
-	}
+    update := bson.M{
+        "$set": bson.M{
+            "status":    "active",
+            "last_seen": req.Timestamp,  // Use the provided timestamp
+        },
+    }
+    _, err := collection.UpdateOne(ctx, bson.M{"uuid": req.UUID}, update)
+    if err != nil {
+        logger.Error("Failed to update agent heartbeat", zap.Error(err), zap.String("agent_uuid", req.UUID))
+        return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update agent heartbeat"})
+    }
 
-	response := HeartbeatResponse{
-		Status:    "heartbeat_received",
-		Timestamp: time.Now(),
-	}
-	return c.JSON(http.StatusOK, response)
+    response := models.HeartbeatResponse{
+        Status:    "heartbeat_received",
+        Timestamp: time.Now(),
+    }
+    return c.JSON(http.StatusOK, response)
 }
 
 // ListAgentTasks handles GET /agent/:agent_id/tasks.

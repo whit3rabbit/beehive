@@ -77,6 +77,63 @@ components:
           type: string
           format: date-time
 
+    AgentSummary:
+      type: object
+      properties:
+        uuid:
+          type: string
+        nickname:
+          type: string
+        hostname:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+        role:
+          type: string
+
+    AgentRegistrationResponse:
+      type: object
+      properties:
+        api_key:
+          type: string
+        status:
+          type: string
+          enum: [registered]
+        timestamp:
+          type: string
+          format: date-time
+
+    HeartbeatRequest:
+      type: object
+      required:
+        - uuid
+        - timestamp
+      properties:
+        uuid:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    HeartbeatResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [heartbeat_received]
+        timestamp:
+          type: string
+          format: date-time
+
+    TaskOutput:
+      type: object
+      properties:
+        logs:
+          type: string
+        error:
+          type: string
+
     Task:
       type: object
       required:
@@ -90,14 +147,14 @@ components:
           type: string
         type:
           type: string
-          enum: [scan, execute, monitor]
+          enum: [command_shell, file_operation, ui_automation, browser_automation]
         parameters:
           type: object
         status:
           type: string
           enum: [queued, running, completed, failed, cancelled, timeout]
         output:
-          type: object
+          $ref: '#/components/schemas/TaskOutput'
         created_at:
           type: string
           format: date-time
@@ -107,6 +164,74 @@ components:
         timeout:
           type: integer
         started_at:
+          type: string
+          format: date-time
+
+    TaskCreationResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+        timestamp:
+          type: string
+          format: date-time
+
+    TaskCancelResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+        status:
+          type: string
+          enum: [cancelled]
+        timestamp:
+          type: string
+          format: date-time
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        endpoint:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+        details:
+          type: string
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogEntry'
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        applications:
+          type: array
+          items:
+            type: string
+        default_tasks:
+          type: array
+          items:
+            type: string
+        created_at:
           type: string
           format: date-time
 
@@ -149,6 +274,10 @@ paths:
       responses:
         '200':
           description: Agent registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRegistrationResponse'
         '401':
           description: Authentication failed
 
@@ -163,17 +292,39 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - uuid
-              properties:
-                uuid:
-                  type: string
+              $ref: '#/components/schemas/HeartbeatRequest'
       responses:
         '200':
           description: Heartbeat received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
         '401':
           description: Authentication failed
+
+  /api/agent/{agent_id}/tasks:
+    get:
+      summary: List Tasks for an Agent
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      parameters:
+        - in: path
+          name: agent_id
+          schema:
+            type: string
+          required: true
+          description: Agent ID
+      responses:
+        '200':
+          description: Array of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
 
   /api/task/create:
     post:
@@ -195,6 +346,10 @@ paths:
       responses:
         '200':
           description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCreationResponse'
         '400':
           description: Invalid request
         '401':
@@ -237,5 +392,61 @@ paths:
       responses:
         '200':
           description: Task cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCancelResponse'
         '404':
           description: Task not found
+
+  /admin/roles:
+    get:
+      summary: List All Roles
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Array of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+    post:
+      summary: Create a New Role
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Role'
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+  /admin/roles/{role_id}:
+    get:
+      summary: Retrieve Role Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: role_id
+          schema:
+            type: string
+          required: true
+          description: Role ID
+      responses:
+        '200':
+          description: Role details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
