@@ -11,7 +11,12 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.x",
+    "@tanstack/react-query": "^5.x",
+    "axios": "^1.x",
+    "shadcn/ui": "latest",
+    "tailwindcss": "^3.x"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
