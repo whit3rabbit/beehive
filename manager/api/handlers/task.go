@@ -180,7 +180,7 @@ func GetTaskStatus(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param task_id path string true "Task ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} models.TaskCancelResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /task/cancel/{task_id} [post]
