@@ -17,13 +17,14 @@ import (
     "go.uber.org/zap"
     "gopkg.in/yaml.v3"
 
-    "github.com/whit3rabbit/beehive/manager/api/admin"
-    "github.com/whit3rabbit/beehive/manager/api/handlers"
-    "github.com/whit3rabbit/beehive/manager/internal/logger"
-    "github.com/whit3rabbit/beehive/manager/internal/mongodb"
-    customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
-    "github.com/whit3rabbit/beehive/manager/migrations"
-    "github.com/whit3rabbit/beehive/manager/models"
+	"github.com/whit3rabbit/beehive/manager/api/admin"
+	"github.com/whit3rabbit/beehive/manager/api/handlers"
+	"github.com/whit3rabbit/beehive/manager/internal/logger"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/middleware"
+	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
+	"github.com/whit3rabbit/beehive/manager/migrations"
+	"github.com/whit3rabbit/beehive/manager/models"
 )
 
 type Config struct {
@@ -232,9 +233,16 @@ func main() {
 		return c.JSON(http.StatusOK, healthStatus)
 	})
 
+	// Initialize Rate Limiter
+	rateLimiter := middleware.NewRateLimiter(
+		config.Security.RateLimiting.MaxAttempts,
+		config.Security.RateLimiting.WindowSeconds,
+		config.Security.RateLimiting.BlockoutMinutes,
+	)
+
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
-	adminRoutes.Use(customMiddleware.AdminAuthMiddleware)
+	adminRoutes.Use(customMiddleware.AdminAuthMiddleware(rateLimiter))
 
 	// Admin protected routes
 	adminRoutes.GET("/roles", handlers.ListRoles)

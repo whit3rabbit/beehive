@@ -19,6 +19,11 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
+// RateLimiter interface
+type RateLimiter interface {
+	CheckLimit(key string) (bool, time.Duration)
+}
+
 var validate = validator.New()
 
 type Validatable interface {
@@ -69,23 +74,33 @@ func RefreshToken(c echo.Context) error {
 	})
 }
 
-// AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header.
+// AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header and applies rate limiting.
 // It expects the header in the format: "Bearer <token>".
-func AdminAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
+func AdminAuthMiddleware(rateLimiter RateLimiter) echo.HandlerFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
+			}
+			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+			jwtSecret := c.Get("jwt_secret").(string)
+			claims, err := admin.ValidateToken(tokenStr, jwtSecret)
+			if err != nil {
+				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
+			}
+
+			// Apply rate limiting
+			username := claims.Username
+			allowed, waitDuration := rateLimiter.CheckLimit(username)
+			if !allowed {
+				return c.JSON(http.StatusTooManyRequests, echo.Map{"error": "Too many requests", "retry_after": waitDuration.Seconds()})
+			}
+
+			// Optionally, store admin info in the context for downstream handlers.
+			c.Set("admin", username)
+			return next(c)
 		}
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		jwtSecret := c.Get("jwt_secret").(string)
-		claims, err := admin.ValidateToken(tokenStr, jwtSecret)
-		if err != nil {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
-		}
-		// Optionally, store admin info in the context for downstream handlers.
-		c.Set("admin", claims.Username)
-		return next(c)
 	}
 }
 
