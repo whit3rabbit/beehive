@@ -13,6 +13,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+
+	"github.com/labstack/echo/v4"
+	"github.com/whit3rabbit/beehive/manager/api/handlers"
 	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
@@ -302,6 +309,54 @@ func TestLogEntryCRUD(t *testing.T) {
 	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
 }
 
+func setupEcho() *echo.Echo {
+	e := echo.New()
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler
+	return e
+}
+
+func TestAPICreateTask(t *testing.T) {
+	e := setupEcho()
+	
+	// Setup route
+	e.POST("/task/create", handlers.CreateTask)
+
+	// Create test task
+	task := models.Task{
+		AgentID: "test-agent",
+		Type:    "scan",
+		Parameters: map[string]interface{}{
+			"target": "localhost",
+		},
+	}
+
+	taskReq := handlers.TaskRequest{
+		Task: task,
+	}
+
+	jsonBytes, err := json.Marshal(taskReq)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/task/create", bytes.NewReader(jsonBytes))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(req, rec)
+	c.Set("mongodb_database", testConfig.MongoDB.Database)
+
+	// Test handler
+	err = handlers.CreateTask(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Verify response
+	var response models.TaskCreationResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, response.TaskID)
+	assert.Equal(t, "queued", response.Status)
+}
+
 func TestTaskOutputValidation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -350,6 +405,76 @@ func TestTaskOutputValidation(t *testing.T) {
 	// Cleanup
 	_, err = collection.DeleteOne(ctx, bson.M{"agent_id": task.AgentID})
 	assert.NoError(t, err, "Should delete task without error")
+}
+
+func TestAPIListRoles(t *testing.T) {
+	e := setupEcho()
+	e.GET("/roles", handlers.ListRoles)
+
+	// Create test role first
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("roles")
+
+	role := models.Role{
+		Name:        "test-role",
+		Description: "Test role description",
+		CreatedAt:   time.Now(),
+	}
+
+	_, err := collection.InsertOne(ctx, role)
+	require.NoError(t, err)
+
+	// Test API endpoint
+	req := httptest.NewRequest(http.MethodGet, "/roles", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("mongodb_database", testConfig.MongoDB.Database)
+
+	err = handlers.ListRoles(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var roles []models.Role
+	err = json.Unmarshal(rec.Body.Bytes(), &roles)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, roles)
+	assert.Equal(t, "test-role", roles[0].Name)
+
+	// Cleanup
+	_, err = collection.DeleteOne(ctx, bson.M{"name": role.Name})
+	assert.NoError(t, err)
+}
+
+func TestAPIAgentHeartbeat(t *testing.T) {
+	e := setupEcho()
+	e.POST("/agent/heartbeat", handlers.AgentHeartbeat)
+
+	heartbeat := models.HeartbeatRequest{
+		UUID:      "test-agent",
+		Timestamp: time.Now(),
+	}
+
+	jsonBytes, err := json.Marshal(heartbeat)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/agent/heartbeat", bytes.NewReader(jsonBytes))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(req, rec)
+	c.Set("mongodb_database", testConfig.MongoDB.Database)
+
+	err = handlers.AgentHeartbeat(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response models.HeartbeatResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "heartbeat_received", response.Status)
 }
 
 func TestPasswordPolicyValidation(t *testing.T) {
