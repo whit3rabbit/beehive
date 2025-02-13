@@ -126,3 +126,8 @@ docker-compose: ## Run with Docker Compose
 help: ## Display this help
 	@echo "Available targets:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  ${COLOR_GREEN}%-20s${COLOR_RESET} %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+test-integration: ## Run integration tests with Docker
+	docker-compose -f tests/integration/docker-compose.test.yml up -d
+	go test -v ./tests/integration/...
+	docker-compose -f tests/integration/docker-compose.test.yml down
