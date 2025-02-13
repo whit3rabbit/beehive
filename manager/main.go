@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-    "github.com/joho/godotenv"
-    "github.com/labstack/echo/v4"
-    echoMiddleware "github.com/labstack/echo/v4/middleware"
-    "go.mongodb.org/mongo-driver/bson"
-    "go.uber.org/zap"
-    "gopkg.in/yaml.v3"
+	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 
 	"github.com/whit3rabbit/beehive/manager/api/admin"
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
@@ -27,6 +27,13 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
+// RateLimiterConfig holds rate limiting configuration
+type RateLimiterConfig struct {
+	MaxAttempts     int           `yaml:"max_attempts"`
+	WindowSeconds   int           `yaml:"window_seconds"`
+	BlockoutMinutes int           `yaml:"blockout_minutes"`
+}
+
 type Config struct {
 	Server struct {
 		Host      string `yaml:"host"`
@@ -36,8 +43,8 @@ type Config struct {
 			Enabled      bool     `yaml:"enabled"`
 			CertFile     string   `yaml:"cert_file"`
 			KeyFile      string   `yaml:"key_file"`
-			MinVersion   string   `yaml:"min_version"`     // e.g., "1.2"
-			CipherSuites []string `yaml:"cipher_suites"` // List of cipher suites
+			MinVersion   string   `yaml:"min_version"`
+			CipherSuites []string `yaml:"cipher_suites"`
 		} `yaml:"tls"`
 	} `yaml:"server"`
 	Security struct {
@@ -48,11 +55,7 @@ type Config struct {
 			RequireNumbers   bool `yaml:"require_numbers"`
 			RequireSpecial   bool `yaml:"require_special"`
 		} `yaml:"password_policy"`
-		RateLimiting struct {
-			MaxAttempts     int `yaml:"max_attempts"`
-			WindowSeconds   int `yaml:"window_seconds"`
-			BlockoutMinutes int `yaml:"blockout_minutes"`
-		} `yaml:"rate_limiting"`
+		RateLimiting RateLimiterConfig `yaml:"rate_limiting"`
 	} `yaml:"security"`
 	MongoDB struct {
 		URI      string `yaml:"uri"`
@@ -81,8 +84,6 @@ type HealthStatus struct {
 	Version string  `json:"version"`
 }
 
-var startTime time.Time
-
 func loadConfig(filename string) (*Config, error) {
 	// Load .env first
 	godotenv.Load()
@@ -105,21 +106,11 @@ func loadConfig(filename string) (*Config, error) {
 }
 
 func main() {
-	// Record start time
-	startTime = time.Now()
 
 	// Load configuration
-	config, err := loadConfig("config.yaml")
+	config, err := loadConfig("config/config.yaml")
 	if err != nil {
 		logger.Fatal("Error loading config", zap.Error(err))
-	}
-
-	// Ensure required config values are set
-	if config.Auth.JWTSecret == "" {
-		logger.Fatal("JWT_SECRET must be set in configuration")
-	}
-	if config.Admin.DefaultPassword == "" {
-		logger.Fatal("ADMIN_DEFAULT_PASSWORD must be set in configuration")
 	}
 
 	// Initialize Logger
@@ -128,19 +119,20 @@ func main() {
 	}
 	defer logger.Sync()
 
-	// Connect to MongoDB (unchanged)
+	// Connect to MongoDB
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
 		logger.Fatal("Error connecting to MongoDB", zap.Error(err))
 	}
 
+	// Create root context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start cleanup routine for login attempts
+	go admin.CleanupLoginAttempts(ctx)
+
 	// Run migrations
-	// Ensure MongoDB client is initialized before running migrations
-	if mongodb.Client == nil {
-		logger.Fatal("MongoDB client not initialized")
-	}
-
 	db := mongodb.Client.Database(config.MongoDB.Database)
-
 	allMigrations := []migrations.Migration{
 		migrations.Migration0001,
 	}
@@ -150,94 +142,49 @@ func main() {
 	}
 
 	// Ensure admin user exists
-	adminCollection := mongodb.Client.Database(config.MongoDB.Database).Collection("admins")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	adminCollection := db.Collection("admins")
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelTimeout()
+
+	passwordPolicy := models.PasswordPolicy{
+		MinLength:        config.Security.PasswordPolicy.MinLength,
+		RequireUppercase: config.Security.PasswordPolicy.RequireUppercase,
+		RequireLowercase: config.Security.PasswordPolicy.RequireLowercase,
+		RequireNumbers:   config.Security.PasswordPolicy.RequireNumbers,
+		RequireSpecial:   config.Security.PasswordPolicy.RequireSpecial,
+	}
 
 	var adminUser models.Admin
-	err = adminCollection.FindOne(ctx, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser)
+	err = adminCollection.FindOne(ctxTimeout, bson.M{"username": config.Admin.DefaultUsername}).Decode(&adminUser)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword)
+			hashedPassword, err := admin.GenerateHashPassword(config.Admin.DefaultPassword, passwordPolicy)
 			if err != nil {
-				logger.Fatal("Failed to hash default admin password", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+				logger.Fatal("Failed to hash default admin password", zap.Error(err))
 			}
-			_, err = adminCollection.InsertOne(ctx, models.Admin{
+
+			_, err = adminCollection.InsertOne(ctxTimeout, models.Admin{
 				Username:  config.Admin.DefaultUsername,
 				Password:  hashedPassword,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			})
 			if err != nil {
-				logger.Fatal("Failed to create initial admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+				logger.Fatal("Failed to create initial admin user", zap.Error(err))
 			}
 		} else {
-			logger.Error("Error checking for admin user", zap.Error(err), zap.String("username", config.Admin.DefaultUsername))
+			logger.Error("Error checking for admin user", zap.Error(err))
 		}
 	}
-	defer func() {
-		if err := mongodb.Disconnect(); err != nil {
-			logger.Error("Error disconnecting MongoDB", zap.Error(err))
-		}
-	}()
 
-	// Create a new Echo instance
+	// Create Echo instance and set up middleware
 	e := echo.New()
 
-	// Start cleanup routine for login attempts
-	go admin.CleanupLoginAttempts()
-
-	// Middleware to set config values in context
-	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			c.Set("jwt_secret", config.Auth.JWTSecret)
-			c.Set("token_expiration_hours", config.Auth.TokenExpirationHours)
-			c.Set("api_key", config.Auth.APIKey)
-			c.Set("api_secret", config.Auth.APISecret)
-			c.Set("mongodb_database", config.MongoDB.Database)
-			return next(c)
-		}
-	})
-
-	// Global middleware: logging, recovery, and timeout.
-	e.Use(echoMiddleware.Logger())
-	e.Use(echoMiddleware.Recover())
-	e.Use(echoMiddleware.TimeoutWithConfig(echoMiddleware.TimeoutConfig{
-		Timeout: 30 * time.Second,
-	}))
-
-	// Public routes (no auth required)
-	e.POST("/admin/login", admin.LoginHandler)
-
-	// Health check endpoint
-	e.GET("/health", func(c echo.Context) error {
-		// Check MongoDB connection
-		mongoStatus := "healthy"
-		if err := mongodb.Client.Ping(context.Background(), nil); err != nil {
-			mongoStatus = "unhealthy"
-		}
-
-		// Calculate uptime
-		uptime := time.Since(startTime).Seconds()
-
-		// Get version information (replace with your actual version retrieval)
-		version := "v1.0.0"
-
-		healthStatus := HealthStatus{
-			Status:  "healthy",
-			MongoDB: mongoStatus,
-			Uptime:  uptime,
-			Version: version,
-		}
-
-		return c.JSON(http.StatusOK, healthStatus)
-	})
-
-	// Initialize Rate Limiter
+	// Initialize rate limiter
 	rateLimiter := middleware.NewRateLimiter(
 		config.Security.RateLimiting.MaxAttempts,
-		config.Security.RateLimiting.WindowSeconds,
-		config.Security.RateLimiting.BlockoutMinutes,
+		time.Duration(config.Security.RateLimiting.WindowSeconds)*time.Second,
+		time.Duration(config.Security.RateLimiting.BlockoutMinutes)*time.Minute,
 	)
 
 	// Admin routes (JWT auth)

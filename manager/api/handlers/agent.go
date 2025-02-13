@@ -10,10 +10,14 @@ import (
 	"time"
 
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"github.com/labstack/echo/v4"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/whit3rabbit/beehive/manager/models"
+	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,14 +29,6 @@ type ErrorResponse struct {
 	Error   string `json:"error"`
 	Details string `json:"details,omitempty"`
 }
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/whit3rabbit/beehive/manager/models"
-	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/internal/logger"
-	"go.uber.org/zap"
-)
 
 // hashAPIKey hashes the provided API key using SHA256.
 func hashAPIKey(key string) string {

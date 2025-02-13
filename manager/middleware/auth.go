@@ -19,16 +19,17 @@ import (
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
-// RateLimiter interface
+// RateLimiter defines the interface for rate limiting functionality.
 type RateLimiter interface {
 	CheckLimit(key string) (bool, time.Duration)
 }
 
-var validate = validator.New()
-
+// Validatable defines the interface for request validation.
 type Validatable interface {
 	Validate() error
 }
+
+var validate = validator.New()
 
 // RequestValidationMiddleware validates the request body against the struct tags.
 func RequestValidationMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
@@ -46,28 +47,34 @@ func RequestValidationMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 // RefreshToken handles the token refresh endpoint.
+// It validates the current token and issues a new one with extended expiration.
 func RefreshToken(c echo.Context) error {
-	// Get the token from the request header.
+	// Get the token from the request header
 	authHeader := c.Request().Header.Get("Authorization")
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
+		return c.JSON(http.StatusUnauthorized, echo.Map{
+			"error": "Missing or invalid Authorization header",
+		})
 	}
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-	// Validate the current token.
+	// Validate the current token
 	jwtSecret := c.Get("jwt_secret").(string)
 	claims, err := admin.ValidateToken(tokenStr, jwtSecret)
 	if err != nil {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
+		return c.JSON(http.StatusUnauthorized, echo.Map{
+			"error": "Invalid token",
+		})
 	}
 
-	// Generate a new token with an extended expiration.
+	// Generate a new token with an extended expiration
 	newToken, err := admin.GenerateToken(claims.Username, jwtSecret, c.Get("token_expiration_hours").(int))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Could not generate token"})
+		return c.JSON(http.StatusInternalServerError, echo.Map{
+			"error": "Could not generate token",
+		})
 	}
 
-	// Return the new token.
 	return c.JSON(http.StatusOK, echo.Map{
 		"token":    newToken,
 		"username": claims.Username,
@@ -76,28 +83,36 @@ func RefreshToken(c echo.Context) error {
 
 // AdminAuthMiddleware checks for a valid JWT token in the "Authorization" header and applies rate limiting.
 // It expects the header in the format: "Bearer <token>".
-func AdminAuthMiddleware(rateLimiter RateLimiter) echo.HandlerFunc {
+func AdminAuthMiddleware(rateLimiter RateLimiter) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing or invalid Authorization header"})
+				return c.JSON(http.StatusUnauthorized, echo.Map{
+					"error": "Missing or invalid Authorization header",
+				})
 			}
+
 			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 			jwtSecret := c.Get("jwt_secret").(string)
 			claims, err := admin.ValidateToken(tokenStr, jwtSecret)
 			if err != nil {
-				return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token"})
+				return c.JSON(http.StatusUnauthorized, echo.Map{
+					"error": "Invalid token",
+				})
 			}
 
 			// Apply rate limiting
 			username := claims.Username
 			allowed, waitDuration := rateLimiter.CheckLimit(username)
 			if !allowed {
-				return c.JSON(http.StatusTooManyRequests, echo.Map{"error": "Too many requests", "retry_after": waitDuration.Seconds()})
+				return c.JSON(http.StatusTooManyRequests, echo.Map{
+					"error":       "Too many requests",
+					"retry_after": waitDuration.Seconds(),
+				})
 			}
 
-			// Optionally, store admin info in the context for downstream handlers.
+			// Store admin info in the context for downstream handlers
 			c.Set("admin", username)
 			return next(c)
 		}
@@ -113,7 +128,9 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		signature := c.Request().Header.Get("X-Signature")
 
 		if apiKey == "" || signature == "" {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing API key or signature"})
+			return c.JSON(http.StatusUnauthorized, echo.Map{
+				"error": "Missing API key or signature",
+			})
 		}
 
 		// Get MongoDB database name from context
@@ -127,38 +144,44 @@ func APIAuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		var agent models.Agent
 		err := collection.FindOne(ctx, bson.M{"api_key": apiKey}).Decode(&agent)
 		if err != nil {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid API key"})
+			return c.JSON(http.StatusUnauthorized, echo.Map{
+				"error": "Invalid API key",
+			})
 		}
 
 		// Store agent info in context for downstream handlers
 		c.Set("agent_id", agent.ID.Hex())
 		c.Set("agent_uuid", agent.UUID)
 
-		// Define a struct to bind the request body to.  We don't actually care
-		// about the contents, we just need to read the body for signature validation.
+		// Read and validate request body
 		var body struct{}
 		if err := c.Bind(&body); err != nil {
-			return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})
+			return c.JSON(http.StatusBadRequest, echo.Map{
+				"error": "Invalid request body",
+			})
 		}
 
-		// Get the request body as a byte slice.
+		// Get the request body as a byte slice
 		bodyBytes, err := io.ReadAll(c.Request().Body)
-		defer c.Request().Body.Close() // Ensure body is closed
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Unable to read request body"})
+			return c.JSON(http.StatusInternalServerError, echo.Map{
+				"error": "Unable to read request body",
+			})
 		}
+		defer c.Request().Body.Close()
 
-		// Restore the request body for downstream handlers.
+		// Restore the request body for downstream handlers
 		c.Request().Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 
-		// Use the agent's API secret to compute the HMAC signature.
+		// Compute and verify HMAC signature
 		mac := hmac.New(sha256.New, []byte(agent.APISecret))
 		mac.Write(bodyBytes)
 		expectedMAC := hex.EncodeToString(mac.Sum(nil))
 
-		// Compare the computed signature with the signature from the header.
 		if !hmac.Equal([]byte(signature), []byte(expectedMAC)) {
-			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid signature"})
+			return c.JSON(http.StatusUnauthorized, echo.Map{
+				"error": "Invalid signature",
+			})
 		}
 
 		return next(c)

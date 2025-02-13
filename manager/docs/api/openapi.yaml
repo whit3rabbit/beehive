@@ -1,0 +1,241 @@
+openapi: 3.0.3
+info:
+  title: Beehive Manager API
+  description: API for managing agents and tasks in the Beehive system
+  version: 1.0.0
+
+servers:
+  - url: https://{server}:8080
+    variables:
+      server:
+        default: localhost
+        description: Server hostname
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: X-Signature
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        username:
+          type: string
+
+    Agent:
+      type: object
+      required:
+        - uuid
+        - hostname
+        - mac_hash
+      properties:
+        uuid:
+          type: string
+        hostname:
+          type: string
+        mac_hash:
+          type: string
+        nickname:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+
+    Task:
+      type: object
+      required:
+        - agent_id
+        - type
+        - parameters
+      properties:
+        id:
+          type: string
+        agent_id:
+          type: string
+        type:
+          type: string
+          enum: [scan, execute, monitor]
+        parameters:
+          type: object
+        status:
+          type: string
+          enum: [queued, running, completed, failed, cancelled, timeout]
+        output:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        timeout:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+paths:
+  /admin/login:
+    post:
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/agent/register:
+    post:
+      summary: Register a new agent
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Agent'
+      responses:
+        '200':
+          description: Agent registered successfully
+        '401':
+          description: Authentication failed
+
+  /api/agent/heartbeat:
+    post:
+      summary: Agent heartbeat
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uuid
+              properties:
+                uuid:
+                  type: string
+      responses:
+        '200':
+          description: Heartbeat received
+        '401':
+          description: Authentication failed
+
+  /api/task/create:
+    post:
+      summary: Create a new task
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - task
+              properties:
+                task:
+                  $ref: '#/components/schemas/Task'
+      responses:
+        '200':
+          description: Task created successfully
+        '400':
+          description: Invalid request
+        '401':
+          description: Authentication failed
+
+  /api/task/status/{task_id}:
+    get:
+      summary: Get task status
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      responses:
+        '200':
+          description: Task status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+
+  /api/task/cancel/{task_id}:
+    post:
+      summary: Cancel a task
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - ApiKeyAuth: []
+        - SignatureAuth: []
+      responses:
+        '200':
+          description: Task cancelled successfully
+        '404':
+          description: Task not found

@@ -134,6 +134,8 @@ func LoginHandler(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+	}
+
 	// Get password policy from context
 	passwordPolicy, ok := c.Get("password_policy").(models.PasswordPolicy)
 	if !ok {
@@ -204,18 +206,36 @@ func LoginHandler(c echo.Context) error {
 	})
 }
 
-func CleanupLoginAttempts() {
+// CleanupLoginAttempts periodically cleans up expired login attempts.
+func CleanupLoginAttempts(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
+
 	go func() {
-		for range ticker.C {
-			loginMutex.Lock()
-			now := time.Now()
-			for username, attempt := range loginAttempts {
-				if now.Sub(attempt.lastAttempt) > 15*time.Minute {
-					delete(loginAttempts, username)
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Info("Stopping login attempts cleanup routine")
+				return
+			case <-ticker.C:
+				loginMutex.Lock()
+				now := time.Now()
+				cleanupCount := 0
+
+				for username, attempt := range loginAttempts {
+					if now.Sub(attempt.lastAttempt) > 15*time.Minute {
+						delete(loginAttempts, username)
+						cleanupCount++
+					}
+				}
+
+				loginMutex.Unlock()
+
+				if cleanupCount > 0 {
+					logger.Info("Cleaned up login attempts",
+						zap.Int("count", cleanupCount))
 				}
 			}
-			loginMutex.Unlock()
 		}
 	}()
 }
