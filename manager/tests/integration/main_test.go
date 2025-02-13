@@ -89,3 +89,104 @@ func TestCreateCollection(t *testing.T) {
 	err = db.Collection("test_collection").Drop(ctx)
 	assert.NoError(t, err, "Should drop collection without error")
 }
+
+func TestAgentCRUD(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("agents")
+
+	// Create agent
+	agent := models.Agent{
+		UUID:      "test-uuid",
+		Hostname:  "test-host",
+		MacHash:   "test-mac-hash",
+		Nickname:  "test-agent",
+		Role:      "worker",
+		APIKey:    "test-api-key",
+		APISecret: "test-api-secret",
+		Status:    "active",
+		LastSeen:  time.Now(),
+		CreatedAt: time.Now(),
+	}
+
+	result, err := collection.InsertOne(ctx, agent)
+	assert.NoError(t, err, "Should insert agent without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Read agent
+	var foundAgent models.Agent
+	err = collection.FindOne(ctx, bson.M{"uuid": agent.UUID}).Decode(&foundAgent)
+	assert.NoError(t, err, "Should find agent without error")
+	assert.Equal(t, agent.Hostname, foundAgent.Hostname, "Should match hostname")
+
+	// Update agent
+	update := bson.M{"$set": bson.M{"nickname": "updated-nickname"}}
+	_, err = collection.UpdateOne(ctx, bson.M{"uuid": agent.UUID}, update)
+	assert.NoError(t, err, "Should update agent without error")
+
+	// Verify update
+	err = collection.FindOne(ctx, bson.M{"uuid": agent.UUID}).Decode(&foundAgent)
+	assert.NoError(t, err, "Should find updated agent")
+	assert.Equal(t, "updated-nickname", foundAgent.Nickname, "Should have updated nickname")
+
+	// Delete agent
+	_, err = collection.DeleteOne(ctx, bson.M{"uuid": agent.UUID})
+	assert.NoError(t, err, "Should delete agent without error")
+
+	// Verify deletion
+	err = collection.FindOne(ctx, bson.M{"uuid": agent.UUID}).Decode(&foundAgent)
+	assert.Error(t, err, "Should not find deleted agent")
+	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
+}
+
+func TestTaskCRUD(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("tasks")
+
+	// Create task
+	task := models.Task{
+		AgentID: "test-agent-id",
+		Type:    "command_shell",
+		Parameters: map[string]interface{}{
+			"command": "echo test",
+		},
+		Status:    "queued",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Timeout:   300,
+	}
+
+	result, err := collection.InsertOne(ctx, task)
+	assert.NoError(t, err, "Should insert task without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Read task
+	var foundTask models.Task
+	err = collection.FindOne(ctx, bson.M{"agent_id": task.AgentID}).Decode(&foundTask)
+	assert.NoError(t, err, "Should find task without error")
+	assert.Equal(t, task.Type, foundTask.Type, "Should match task type")
+
+	// Update task
+	update := bson.M{"$set": bson.M{"status": "running"}}
+	_, err = collection.UpdateOne(ctx, bson.M{"agent_id": task.AgentID}, update)
+	assert.NoError(t, err, "Should update task without error")
+
+	// Verify update
+	err = collection.FindOne(ctx, bson.M{"agent_id": task.AgentID}).Decode(&foundTask)
+	assert.NoError(t, err, "Should find updated task")
+	assert.Equal(t, "running", foundTask.Status, "Should have updated status")
+
+	// Delete task
+	_, err = collection.DeleteOne(ctx, bson.M{"agent_id": task.AgentID})
+	assert.NoError(t, err, "Should delete task without error")
+
+	// Verify deletion
+	err = collection.FindOne(ctx, bson.M{"agent_id": task.AgentID}).Decode(&foundTask)
+	assert.Error(t, err, "Should not find deleted task")
+	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
+}
