@@ -21,28 +21,31 @@ import (
 	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/internal/setup"
+	"github.com/whit3rabbit/beehive/manager/cmd/setup"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/migrations"
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
 func main() {
-	// Parse command line flags
-	flags := config.ParseFlags()
+    // Parse command line flags
+    flags := config.ParseFlags()
 
-	// Check if this is a setup command
-	if len(os.Args) > 1 && os.Args[1] == "setup" {
-		setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
-		skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
-		setupCmd.Parse(os.Args[2:])
-		
-		if err := setup.RunSetup(*skipPrompts); err != nil {
-			fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
+    // Check if this is a setup command
+    if len(os.Args) > 1 && os.Args[1] == "setup" {
+        setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
+        skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
+        if err := setupCmd.Parse(os.Args[2:]); err != nil {
+            fmt.Fprintf(os.Stderr, "Failed to parse setup flags: %v\n", err)
+            os.Exit(1)
+        }
+
+        if err := setup.RunSetup(*skipPrompts); err != nil {
+            fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+            os.Exit(1)
+        }
+        return
+    }
 
 	// Load configuration
 	cfg, err := config.LoadConfig(flags.ConfigFile)
