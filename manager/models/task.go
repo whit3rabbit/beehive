@@ -20,24 +20,24 @@ type Task struct {
 }
 
 type TaskCreationResponse struct {
-    TaskID    string    `json:"task_id"`
-    Status    string    `json:"status"`
-    Timestamp time.Time `json:"timestamp"`
+	TaskID    string    `json:"task_id"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type TaskCancelResponse struct {
-    TaskID    string    `json:"task_id"`
-    Status    string    `json:"status"`
-    Timestamp time.Time `json:"timestamp"`
+	TaskID    string    `json:"task_id"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type AgentRegistrationResponse struct {
-    APIKey    string    `json:"api_key"`
-    Status    string    `json:"status"`
-    Timestamp time.Time `json:"timestamp"`
+	APIKey    string    `json:"api_key"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type Output struct {
-    Logs  string `json:"logs,omitempty" bson:"logs,omitempty"`
-    Error string `json:"error,omitempty" bson:"error,omitempty"`
+	Logs  string `json:"logs,omitempty" bson:"logs,omitempty"`
+	Error string `json:"error,omitempty" bson:"error,omitempty"`
 }

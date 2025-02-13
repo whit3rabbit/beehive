@@ -32,7 +32,11 @@ type ErrorResponse struct {
 
 type HeartbeatRequest struct {
     UUID      string    `json:"uuid" validate:"required"`
-    Timestamp time.Time `json:"timestamp" validate:"required"`
+}
+
+type HeartbeatResponse struct {
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // hashAPIKey hashes the provided API key using SHA256.
@@ -166,9 +170,9 @@ func AgentHeartbeat(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update agent heartbeat"})
 	}
 
-	response := echo.Map{
-		"status":    "heartbeat_received",
-		"timestamp": time.Now(),
+	response := HeartbeatResponse{
+		Status:    "heartbeat_received",
+		Timestamp: time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
