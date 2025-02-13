@@ -31,7 +31,7 @@ const MaxTaskOutputSize = 1024 * 1024 // 1MB
 // @Tags task
 // @Accept json
 // @Produce json
-// @Param task body taskRequest true "Task object to be created"
+// @Param task body TaskRequest true "Task object to be created"
 // @Success 200 {object} models.TaskCreationResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
