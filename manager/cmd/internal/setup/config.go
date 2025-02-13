@@ -17,21 +17,50 @@ type RateLimiterConfig struct {
 	BlockoutMinutes int `yaml:"blockout_minutes"`
 }
 
+type ServerConfig struct {
+    Host      string `yaml:"host"`
+    Port      int    `yaml:"port"`
+    StaticDir string `yaml:"static_dir"`
+    TLS       TLSConfig `yaml:"tls"`
+}
+
+type TLSConfig struct {
+    Enabled      bool   `yaml:"enabled"`
+    CertFile     string `yaml:"cert_file"`
+    KeyFile      string `yaml:"key_file"`
+    MinVersion   string `yaml:"min_version"`
+    CipherSuites []string `yaml:"cipher_suites"`
+}
+
+type MongoDBConfig struct {
+    URI      string `yaml:"uri"`
+    Database string `yaml:"database"`
+    Host     string `yaml:"host"`
+    Port     int    `yaml:"port"`
+    User     string `yaml:"user"`
+    Pass     string `yaml:"pass"`
+}
+
+type AuthConfig struct {
+    JWTSecret            string `yaml:"jwt_secret"`
+    TokenExpirationHours int    `yaml:"token_expiration_hours"`
+    APIKey              string `yaml:"api_key"`
+    APISecret           string `yaml:"api_secret"`
+}
+
+type AdminConfig struct {
+    DefaultUsername string `yaml:"default_username"`
+    DefaultPassword string `yaml:"default_password"`
+}
+
+type LoggingConfig struct {
+    Level string `yaml:"level"`
+}
+
 // Config holds all configuration settings
 type Config struct {
-	Server struct {
-		Host      string `yaml:"host"`
-		Port      int    `yaml:"port"`
-		StaticDir string `yaml:"static_dir"`
-		TLS       struct {
-			Enabled      bool     `yaml:"enabled"`
-			CertFile     string   `yaml:"cert_file"`
-			KeyFile      string   `yaml:"key_file"`
-			MinVersion   string   `yaml:"min_version"`
-			CipherSuites []string `yaml:"cipher_suites"`
-		} `yaml:"tls"`
-	} `yaml:"server"`
-	Security struct {
+    Server   ServerConfig   `yaml:"server"`
+    Security struct {
 		PasswordPolicy struct {
 			MinLength        int  `yaml:"min_length"`
 			RequireUppercase bool `yaml:"require_uppercase"`
@@ -41,23 +70,10 @@ type Config struct {
 		} `yaml:"password_policy"`
 		RateLimiting RateLimiterConfig `yaml:"rate_limiting"`
 	} `yaml:"security"`
-	MongoDB struct {
-		URI      string `yaml:"uri"`
-		Database string `yaml:"database"`
-	} `yaml:"mongodb"`
-	Auth struct {
-		JWTSecret            string `yaml:"jwt_secret"`
-		TokenExpirationHours int    `yaml:"token_expiration_hours"`
-		APIKey               string `yaml:"api_key"`
-		APISecret            string `yaml:"api_secret"`
-	} `yaml:"auth"`
-	Admin struct {
-		DefaultUsername string `yaml:"default_username"`
-		DefaultPassword string `yaml:"default_password"`
-	} `yaml:"admin"`
-	Logging struct {
-		Level string `yaml:"level"`
-	} `yaml:"logging"`
+    MongoDB  MongoDBConfig  `yaml:"mongodb"`
+    Auth     AuthConfig     `yaml:"auth"`
+    Admin    AdminConfig    `yaml:"admin"`
+    Logging  LoggingConfig  `yaml:"logging"`
 }
 
 // CLIFlags holds all command line arguments
