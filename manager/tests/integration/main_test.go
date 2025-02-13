@@ -247,10 +247,10 @@ func TestRateLimiter(t *testing.T) {
 	assert.False(t, allowed, "Third attempt should be blocked")
 	assert.NotZero(t, waitTime, "Wait time should be non-zero")
 
-	// Wait for window to expire (wait a bit longer than the window)
-	time.Sleep(time.Second * 3)
+	// Wait for window and blockout to expire
+	time.Sleep(time.Second * 5)
 
-	// Should be allowed again
+	// Should be allowed again after full expiry
 	allowed, waitTime = limiter.CheckLimit("test-user")
 	assert.True(t, allowed, "Attempt after window expiry should be allowed")
 	assert.Zero(t, waitTime, "Wait time should be zero")

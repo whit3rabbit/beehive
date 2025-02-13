@@ -40,8 +40,13 @@ func (rl *rateLimiter) CheckLimit(key string) (bool, time.Duration) {
 		delete(rl.blockedUntil, key)
 	}
 
-	// Clean up old attempts
+	// Clean up old attempts and blocked status
 	windowStart := now.Add(-rl.window)
+	if blockedUntil, exists := rl.blockedUntil[key]; exists && blockedUntil.Before(now) {
+		delete(rl.blockedUntil, key)
+		delete(rl.attempts, key)
+	}
+
 	attempts := rl.attempts[key]
 	validAttempts := make([]time.Time, 0)
 
