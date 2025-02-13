@@ -38,10 +38,17 @@ coverage:
 	go tool cover -html=coverage.out
 
 # Build for multiple platforms
-build-all:
-	GOOS=linux GOARCH=amd64 go build -o bin/manager-linux-amd64 ./cmd/manager
-	GOOS=windows GOARCH=amd64 go build -o bin/manager-windows-amd64.exe ./cmd/manager
-	GOOS=darwin GOARCH=amd64 go build -o bin/manager-darwin-amd64 ./cmd/manager
+build-all: linux windows darwin
+
+linux:
+	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/manager-linux-amd64 .
+	strip bin/manager-linux-amd64
+
+windows:
+	GOOS=windows GOARCH=amd64 go build -o bin/manager-windows-amd64.exe .
+
+darwin:
+	GOOS=darwin GOARCH=amd64 go build -o bin/manager-darwin-amd64 .
 
 # Default target
 all: clean build test
