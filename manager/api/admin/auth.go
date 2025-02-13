@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"go.uber.org/zap"
@@ -30,18 +31,45 @@ var loginAttempts = make(map[string]struct {
 	lastAttempt time.Time
 })
 
-// validatePassword checks if the password meets the minimum requirements.
-func validatePassword(password string) error {
-	if len(password) < 8 {
-		return fmt.Errorf("password must be at least 8 characters")
+// validatePassword checks if the password meets the given policy.
+func validatePassword(password string, policy models.PasswordPolicy) error {
+	if len(password) < policy.MinLength {
+		return fmt.Errorf("password must be at least %d characters", policy.MinLength)
 	}
-	// Add more requirements
+
+	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	if policy.RequireUppercase && !hasUpper {
+		return fmt.Errorf("password must contain at least one uppercase letter")
+	}
+	if policy.RequireLowercase && !hasLower {
+		return fmt.Errorf("password must contain at least one lowercase letter")
+	}
+	if policy.RequireNumbers && !hasNumber {
+		return fmt.Errorf("password must contain at least one number")
+	}
+	if policy.RequireSpecial && !hasSpecial {
+		return fmt.Errorf("password must contain at least one special character")
+	}
+
 	return nil
 }
 
 // GenerateHashPassword hashes the provided plaintext password.
-func GenerateHashPassword(password string) (string, error) {
-	if err := validatePassword(password); err != nil {
+func GenerateHashPassword(password string, policy models.PasswordPolicy) (string, error) {
+	if err := validatePassword(password, policy); err != nil {
 		return "", err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -106,10 +134,15 @@ func LoginHandler(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
+	// Get password policy from context
+	passwordPolicy, ok := c.Get("password_policy").(models.PasswordPolicy)
+	if !ok {
+		logger.Error("Password policy not properly configured")
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Internal server error"})
 	}
 
 	// Validate password
-	if err := validatePassword(req.Password); err != nil {
+	if err := validatePassword(req.Password, passwordPolicy); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 
