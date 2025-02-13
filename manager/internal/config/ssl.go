@@ -1,4 +1,4 @@
-package setup
+package config
 
 import (
 	"crypto/rand"
@@ -27,21 +27,21 @@ type SSLConfig struct {
 
 // DefaultSSLConfig returns the default SSL configuration
 func DefaultSSLConfig(certFile, keyFile string) *SSLConfig {
-	return &SSLConfig{
-		Organization:    "Manager",
-		ValidityDays:   365,
-		KeySize:        2048,
-		CertificateFile: certFile,
-		PrivateKeyFile:  keyFile,
-		AdditionalHosts: []string{},
-		AdditionalIPs:   []string{},
-	}
+    return &SSLConfig{
+        Organization:    "Manager",
+        ValidityDays:   365,
+        KeySize:        2048,
+        CertificateFile: certFile,
+        PrivateKeyFile:  keyFile,
+        AdditionalHosts: []string{},
+        AdditionalIPs:   []string{},
+    }
 }
 
 // GenerateSSLCertificate generates a self-signed SSL certificate
 func GenerateSSLCertificate(config *Config) error {
-	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
-	return generateCertificate(sslConfig)
+    sslConfig := DefaultSSLConfig(config.Server.TLS.CertFile, config.Server.TLS.KeyFile)
+    return generateCertificate(sslConfig)
 }
 
 // generateCertificate handles the actual certificate generation process
@@ -175,58 +175,58 @@ func writePrivateKeyToFile(filename string, privateKey *rsa.PrivateKey) error {
 
 // ValidateSSLCertificate checks if the certificate and key files exist and are valid
 func ValidateSSLCertificate(config *Config) error {
-	// Check certificate file
-	certData, err := os.ReadFile(config.TLSCertFile)
-	if err != nil {
-		return fmt.Errorf("failed to read certificate file: %w", err)
-	}
+    // Check certificate file
+    certData, err := os.ReadFile(config.Server.TLS.CertFile)
+    if err != nil {
+        return fmt.Errorf("failed to read certificate file: %w", err)
+    }
 
-	// Parse certificate
-	certBlock, _ := pem.Decode(certData)
-	if certBlock == nil {
-		return fmt.Errorf("failed to decode certificate PEM")
-	}
+    // Parse certificate
+    certBlock, _ := pem.Decode(certData)
+    if certBlock == nil {
+        return fmt.Errorf("failed to decode certificate PEM")
+    }
 
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
-	}
+    cert, err := x509.ParseCertificate(certBlock.Bytes)
+    if err != nil {
+        return fmt.Errorf("failed to parse certificate: %w", err)
+    }
 
-	// Check private key file
-	keyData, err := os.ReadFile(config.TLSKeyFile)
-	if err != nil {
-		return fmt.Errorf("failed to read private key file: %w", err)
-	}
+    // Check private key file
+    keyData, err := os.ReadFile(config.Server.TLS.KeyFile)
+    if err != nil {
+        return fmt.Errorf("failed to read private key file: %w", err)
+    }
 
-	// Parse private key
-	keyBlock, _ := pem.Decode(keyData)
-	if keyBlock == nil {
-		return fmt.Errorf("failed to decode private key PEM")
-	}
+    // Parse private key
+    keyBlock, _ := pem.Decode(keyData)
+    if keyBlock == nil {
+        return fmt.Errorf("failed to decode private key PEM")
+    }
 
-	_, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse private key: %w", err)
-	}
+    _, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+    if err != nil {
+        return fmt.Errorf("failed to parse private key: %w", err)
+    }
 
-	// Check certificate expiration
-	if time.Now().After(cert.NotAfter) {
-		return fmt.Errorf("certificate has expired")
-	}
+    // Check certificate expiration
+    if time.Now().After(cert.NotAfter) {
+        return fmt.Errorf("certificate has expired")
+    }
 
-	return nil
+    return nil
 }
 
 // AddHostToSSLCertificate regenerates the SSL certificate with an additional host
 func AddHostToSSLCertificate(config *Config, hostname string) error {
-	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
-	sslConfig.AdditionalHosts = append(sslConfig.AdditionalHosts, hostname)
-	return generateCertificate(sslConfig)
+    sslConfig := DefaultSSLConfig(config.Server.TLS.CertFile, config.Server.TLS.KeyFile)
+    sslConfig.AdditionalHosts = append(sslConfig.AdditionalHosts, hostname)
+    return generateCertificate(sslConfig)
 }
 
 // AddIPToSSLCertificate regenerates the SSL certificate with an additional IP address
 func AddIPToSSLCertificate(config *Config, ip string) error {
-	sslConfig := DefaultSSLConfig(config.TLSCertFile, config.TLSKeyFile)
-	sslConfig.AdditionalIPs = append(sslConfig.AdditionalIPs, ip)
-	return generateCertificate(sslConfig)
+    sslConfig := DefaultSSLConfig(config.Server.TLS.CertFile, config.Server.TLS.KeyFile)
+    sslConfig.AdditionalIPs = append(sslConfig.AdditionalIPs, ip)
+    return generateCertificate(sslConfig)
 }

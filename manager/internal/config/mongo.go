@@ -1,4 +1,4 @@
-package setup
+package config
 
 import (
 	"context"
@@ -13,72 +13,72 @@ import (
 
 // SetupMongoDB initializes the MongoDB instance with required users and collections
 func SetupMongoDB(config *Config) error {
-	ctx := context.Background()
+    ctx := context.Background()
 
-	// Connect to MongoDB without auth first to create user
-	mongoURI := fmt.Sprintf("mongodb://%s:%d", config.MongoHost, config.MongoPort)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %w", err)
-	}
-	defer client.Disconnect(ctx)
+    // Connect to MongoDB without auth first to create user
+    mongoURI := fmt.Sprintf("mongodb://%s:%d", config.MongoDB.Host, config.MongoDB.Port)
+    client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+    if err != nil {
+        return fmt.Errorf("failed to connect to MongoDB: %w", err)
+    }
+    defer client.Disconnect(ctx)
 
-	// Ping MongoDB to verify connection
-	if err := client.Ping(ctx, nil); err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %w", err)
-	}
+    // Ping MongoDB to verify connection
+    if err := client.Ping(ctx, nil); err != nil {
+        return fmt.Errorf("failed to ping MongoDB: %w", err)
+    }
 
-	// Create the database user
-	if err := createDatabaseUser(ctx, client, config); err != nil {
-		return fmt.Errorf("failed to create database user: %w", err)
-	}
+    // Create the database user
+    if err := createDatabaseUser(ctx, client, config); err != nil {
+        return fmt.Errorf("failed to create database user: %w", err)
+    }
 
-	// Reconnect with the new user credentials
-	authURI := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
-		config.MongoUser,
-		config.MongoPass,
-		config.MongoHost,
-		config.MongoPort,
-		config.MongoDatabase,
-	)
-	authClient, err := mongo.Connect(ctx, options.Client().ApplyURI(authURI))
-	if err != nil {
-		return fmt.Errorf("failed to connect with authentication: %w", err)
-	}
-	defer authClient.Disconnect(ctx)
+    // Reconnect with the new user credentials
+    authURI := fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+        config.MongoDB.User,
+        config.MongoDB.Pass,
+        config.MongoDB.Host,
+        config.MongoDB.Port,
+        config.MongoDB.Database,
+    )
+    authClient, err := mongo.Connect(ctx, options.Client().ApplyURI(authURI))
+    if err != nil {
+        return fmt.Errorf("failed to connect with authentication: %w", err)
+    }
+    defer authClient.Disconnect(ctx)
 
-	// Initialize database schema
-	if err := initializeSchema(ctx, authClient, config); err != nil {
-		return fmt.Errorf("failed to initialize schema: %w", err)
-	}
+    // Initialize database schema
+    if err := initializeSchema(ctx, authClient, config); err != nil {
+        return fmt.Errorf("failed to initialize schema: %w", err)
+    }
 
-	return nil
+    return nil
 }
 
 // createDatabaseUser creates a new MongoDB user with appropriate permissions
 func createDatabaseUser(ctx context.Context, client *mongo.Client, config *Config) error {
-	cmd := bson.D{
-		{Key: "createUser", Value: config.MongoUser},
-		{Key: "pwd", Value: config.MongoPass},
-		{Key: "roles", Value: bson.A{
-			bson.D{
-				{Key: "role", Value: "readWrite"},
-				{Key: "db", Value: config.MongoDatabase},
-			},
-		}},
-	}
+    cmd := bson.D{
+        {Key: "createUser", Value: config.MongoDB.User},
+        {Key: "pwd", Value: config.MongoDB.Pass},
+        {Key: "roles", Value: bson.A{
+            bson.D{
+                {Key: "role", Value: "readWrite"},
+                {Key: "db", Value: config.MongoDB.Database},
+            },
+        }},
+    }
 
-	err := client.Database(config.MongoDatabase).RunCommand(ctx, cmd).Err()
-	if err != nil {
-		return fmt.Errorf("failed to create MongoDB user: %w", err)
-	}
+    err := client.Database(config.MongoDB.Database).RunCommand(ctx, cmd).Err()
+    if err != nil {
+        return fmt.Errorf("failed to create MongoDB user: %w", err)
+    }
 
-	return nil
+    return nil
 }
 
 // initializeSchema creates all necessary collections and indexes
 func initializeSchema(ctx context.Context, client *mongo.Client, config *Config) error {
-	db := client.Database(config.MongoDatabase)
+    db := client.Database(config.MongoDB.Database)
 
 	// Create collections
 	collections := []string{
@@ -197,24 +197,24 @@ func createCollectionIndexes(ctx context.Context, db *mongo.Database, collection
 
 // createAdminUser creates the initial admin user
 func createAdminUser(ctx context.Context, db *mongo.Database, config *Config) error {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPass), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.Admin.DefaultPassword), bcrypt.DefaultCost)
+    if err != nil {
+        return fmt.Errorf("failed to hash password: %w", err)
+    }
 
-	adminUser := bson.D{
-		{Key: "username", Value: config.AdminUser},
-		{Key: "password", Value: string(hashedPassword)},
-		{Key: "created_at", Value: time.Now()},
-		{Key: "updated_at", Value: time.Now()},
-	}
+    adminUser := bson.D{
+        {Key: "username", Value: config.Admin.DefaultUsername},
+        {Key: "password", Value: string(hashedPassword)},
+        {Key: "created_at", Value: time.Now()},
+        {Key: "updated_at", Value: time.Now()},
+    }
 
-	_, err = db.Collection("admins").InsertOne(ctx, adminUser)
-	if err != nil {
-		return fmt.Errorf("failed to create admin user: %w", err)
-	}
+    _, err = db.Collection("admins").InsertOne(ctx, adminUser)
+    if err != nil {
+        return fmt.Errorf("failed to create admin user: %w", err)
+    }
 
-	return nil
+    return nil
 }
 
 // createDefaultRole creates the default worker role
