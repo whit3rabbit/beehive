@@ -37,7 +37,7 @@ const MaxTaskOutputSize = 1024 * 1024 // 1MB
 // @Failure 500 {object} ErrorResponse
 // @Router /task/create [post]
 func CreateTask(c echo.Context) error {
-	var req taskRequest
+	var req TaskRequest
 	if err := c.Bind(&req); err != nil {
 		logger.Error("Invalid request payload", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request payload"})
