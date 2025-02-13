@@ -1,4 +1,25 @@
 services:
+  api-test:
+    build:
+      context: ../../..
+      dockerfile: manager/Dockerfile
+    command: ["./manager", "--config", "/app/config.test.yaml"]
+    depends_on:
+      mongo-test:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=mongodb://admin:test_password@mongo-test:27017/manager_test_db?authSource=admin
+      - JWT_SECRET=testsecret
+      - API_KEY=testkey
+      - API_SECRET=testsecret
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   mongo-test:
     image: mongo:latest
     ports:

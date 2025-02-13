@@ -25,19 +25,87 @@ var (
 	mongoClient *mongo.Client
 )
 
-func TestMain(m *testing.M) {
-	// Setup
-	var err error
-	testConfig = &config.Config{
-		MongoDB: config.MongoDBConfig{
-			URI:      "mongodb://admin:test_password@localhost:27018/admin",
-			Database: "manager_test_db",
-		},
+func waitForServices() {
+	// Wait for MongoDB
+	mongoCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for {
+		select {
+		case <-mongoCtx.Done():
+			log.Fatal("Timeout waiting for MongoDB to become ready")
+		default:
+			err := mongoClient.Ping(mongoCtx, nil)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
 	}
 
-	// Wait for MongoDB to be ready
-	time.Sleep(2 * time.Second)
+	// Wait for API
+	apiCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	for {
+		select {
+		case <-apiCtx.Done():
+			log.Fatal("Timeout waiting for API to become ready")
+		default:
+			resp, err := http.Get(baseAPIURL + "/health")
+			if err == nil && resp.StatusCode == http.StatusOK {
+				return
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
 
+func loginAndGetToken(t *testing.T) {
+	// First create admin user
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("adminpass"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	_, err = mongoClient.Database(testConfig.MongoDB.Database).Collection("admins").InsertOne(context.Background(), bson.M{
+		"username": "admin",
+		"password": string(hashedPassword),
+	})
+	require.NoError(t, err)
+
+	// Get JWT token
+	resp, err := makeAPIRequest("POST", "/admin/login", map[string]interface{}{
+		"username": "admin",
+		"password": "adminpass",
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	testAuthToken = result["token"].(string)
+}
+
+	// Connect to test MongoDB
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	mongoClient, err = mongo.Connect(ctx, options.Client().ApplyURI(testConfig.MongoDB.URI))
+	if err != nil {
+		fmt.Printf("Failed to connect to test MongoDB: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Run tests
+	code := m.Run()
+
+	// Cleanup
+	if err := mongoClient.Disconnect(ctx); err != nil {
+		fmt.Printf("Failed to disconnect from test MongoDB: %v\n", err)
+	}
+
+func TestMain(m *testing.M) {
+	// Setup code
+	var err error
+	testConfig = loadTestConfig()
+	
 	// Connect to test MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -93,26 +161,59 @@ func TestCreateCollection(t *testing.T) {
 	assert.NoError(t, err, "Should drop collection without error")
 }
 
-func TestAgentCRUD(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func TestAgentAPICRUD(t *testing.T) {
+	loginAndGetToken(t)
 
-	db := mongoClient.Database(testConfig.MongoDB.Database)
-	collection := db.Collection("agents")
-
-	// Create agent
-	agent := models.Agent{
-		UUID:      "test-uuid",
-		Hostname:  "test-host",
-		MacHash:   "test-mac-hash",
-		Nickname:  "test-agent",
-		Role:      "worker",
-		APIKey:    "test-api-key",
-		APISecret: "test-api-secret",
-		Status:    "active",
-		LastSeen:  time.Now(),
-		CreatedAt: time.Now(),
+	// Test Create
+	agent := map[string]interface{}{
+		"uuid":     "test-api-uuid",
+		"hostname": "test-api-host",
+		"mac_hash": "test-api-mac-hash",
+		"nickname": "test-api-agent",
+		"role":     "worker",
 	}
+
+	resp, err := makeAPIRequest("POST", "/api/agent/register", agent)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var createdAgent models.AgentRegistrationResponse
+	json.NewDecoder(resp.Body).Decode(&createdAgent)
+	assert.NotEmpty(t, createdAgent.APIKey)
+
+	// Test Get
+	resp, err = makeAPIRequest("GET", "/agent/"+agent["uuid"].(string)+"/summary", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var agentSummary models.AgentSummary
+	json.NewDecoder(resp.Body).Decode(&agentSummary)
+	assert.Equal(t, agent["nickname"], agentSummary.Nickname)
+
+	// Test Update
+	update := map[string]interface{}{
+		"nickname": "updated-nickname",
+	}
+	resp, err = makeAPIRequest("PUT", "/agent/"+agent["uuid"].(string), update)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Verify Update
+	resp, err = makeAPIRequest("GET", "/agent/"+agent["uuid"].(string)+"/summary", nil)
+	require.NoError(t, err)
+	json.NewDecoder(resp.Body).Decode(&agentSummary)
+	assert.Equal(t, "updated-nickname", agentSummary.Nickname)
+
+	// Test Delete
+	resp, err = makeAPIRequest("DELETE", "/agent/"+agent["uuid"].(string), nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Verify Delete
+	resp, err = makeAPIRequest("GET", "/agent/"+agent["uuid"].(string)+"/summary", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
 
 	result, err := collection.InsertOne(ctx, agent)
 	assert.NoError(t, err, "Should insert agent without error")
@@ -142,7 +243,6 @@ func TestAgentCRUD(t *testing.T) {
 	err = collection.FindOne(ctx, bson.M{"uuid": agent.UUID}).Decode(&foundAgent)
 	assert.Error(t, err, "Should not find deleted agent")
 	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
-}
 
 func TestRoleCRUD(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -350,6 +450,52 @@ func TestTaskOutputValidation(t *testing.T) {
 	// Cleanup
 	_, err = collection.DeleteOne(ctx, bson.M{"agent_id": task.AgentID})
 	assert.NoError(t, err, "Should delete task without error")
+}
+
+func TestAPIResponseStructures(t *testing.T) {
+	t.Run("ValidRolesResponse", func(t *testing.T) {
+		resp, err := makeAPIRequest("GET", "/roles", nil)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		
+		var response struct {
+			Logs []models.LogEntry `json:"logs"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		assert.NoError(t, err, "Should decode JSON successfully")
+		assert.True(t, len(response.Logs) >= 0, "Logs array should be present")
+	})
+
+	t.Run("InvalidJSONResponse", func(t *testing.T) {
+		// Send malformed JSON
+		resp, err := makeAPIRequest("POST", "/agent/register", strings.NewReader("{invalid json"))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		
+		var errorResp ErrorResponse
+		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		assert.NoError(t, err, "Should decode error response")
+		assert.Equal(t, "Invalid request payload", errorResp.Error)
+	})
+
+	t.Run("TaskOutputValidation", func(t *testing.T) {
+		// Test with oversized output
+		largeOutput := strings.Repeat("a", 1024*1024+1) // 1MB +1 byte
+		task := models.Task{
+			Output: &models.Output{
+				Logs: largeOutput,
+			},
+		}
+
+		resp, err := makeAPIRequest("POST", "/task/create", task)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		
+		var errorResp ErrorResponse
+		err = json.NewDecoder(resp.Body).Decode(&errorResp)
+		assert.NoError(t, err, "Should decode error response")
+		assert.Contains(t, errorResp.Error, "exceeds size limit")
+	})
 }
 
 func TestPasswordPolicyValidation(t *testing.T) {
