@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"flag"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,7 +22,6 @@ import (
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/middleware"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/migrations"
 	"github.com/whit3rabbit/beehive/manager/models"
@@ -105,19 +105,119 @@ func loadConfig(filename string) (*Config, error) {
 	return config, nil
 }
 
+// CLIFlags holds all command line arguments
+type CLIFlags struct {
+	ConfigFile     string
+	ServerHost     string
+	ServerPort     int
+	MongoURI       string
+	MongoDatabase  string
+	LogLevel       string
+	TLSEnabled     bool
+	TLSCertFile    string
+	TLSKeyFile     string
+	JWTSecret      string
+	AdminUsername  string
+	AdminPassword  string
+}
+
+func parseFlags() *CLIFlags {
+	flags := &CLIFlags{}
+
+	// Configuration file
+	flag.StringVar(&flags.ConfigFile, "config", "config/config.yaml", "Path to configuration file")
+
+	// Server settings
+	flag.StringVar(&flags.ServerHost, "host", "", "Server host address")
+	flag.IntVar(&flags.ServerPort, "port", 0, "Server port")
+
+	// MongoDB settings
+	flag.StringVar(&flags.MongoURI, "mongo-uri", "", "MongoDB URI")
+	flag.StringVar(&flags.MongoDatabase, "mongo-db", "", "MongoDB database name")
+
+	// Logging
+	flag.StringVar(&flags.LogLevel, "log-level", "", "Log level (debug, info, warn, error)")
+
+	// TLS settings
+	flag.BoolVar(&flags.TLSEnabled, "tls", false, "Enable TLS")
+	flag.StringVar(&flags.TLSCertFile, "tls-cert", "", "TLS certificate file path")
+	flag.StringVar(&flags.TLSKeyFile, "tls-key", "", "TLS key file path")
+
+	// Security settings
+	flag.StringVar(&flags.JWTSecret, "jwt-secret", "", "JWT secret key")
+	flag.StringVar(&flags.AdminUsername, "admin-user", "", "Default admin username")
+	flag.StringVar(&flags.AdminPassword, "admin-pass", "", "Default admin password")
+
+	// Parse flags
+	flag.Parse()
+
+	return flags
+}
+
+// mergeConfig merges configuration from different sources
+func mergeConfig(config *Config, flags *CLIFlags) {
+	// Override with CLI flags if provided
+	if flags.ServerHost != "" {
+		config.Server.Host = flags.ServerHost
+	}
+	if flags.ServerPort != 0 {
+		config.Server.Port = flags.ServerPort
+	}
+	if flags.MongoURI != "" {
+		config.MongoDB.URI = flags.MongoURI
+	}
+	if flags.MongoDatabase != "" {
+		config.MongoDB.Database = flags.MongoDatabase
+	}
+	if flags.LogLevel != "" {
+		config.Logging.Level = flags.LogLevel
+	}
+	if flags.TLSEnabled {
+		config.Server.TLS.Enabled = true
+		if flags.TLSCertFile != "" {
+			config.Server.TLS.CertFile = flags.TLSCertFile
+		}
+		if flags.TLSKeyFile != "" {
+			config.Server.TLS.KeyFile = flags.TLSKeyFile
+		}
+	}
+	if flags.JWTSecret != "" {
+		config.Auth.JWTSecret = flags.JWTSecret
+	}
+	if flags.AdminUsername != "" {
+		config.Admin.DefaultUsername = flags.AdminUsername
+	}
+	if flags.AdminPassword != "" {
+		config.Admin.DefaultPassword = flags.AdminPassword
+	}
+}
+
 func main() {
+	// Parse command line flags
+	flags := parseFlags()
 
 	// Load configuration
-	config, err := loadConfig("config/config.yaml")
+	config, err := loadConfig(flags.ConfigFile)
 	if err != nil {
 		logger.Fatal("Error loading config", zap.Error(err))
 	}
+
+	// Merge configurations
+	mergeConfig(config, flags)
 
 	// Initialize Logger
 	if err := logger.Initialize(config.Logging.Level); err != nil {
 		logger.Fatal("Failed to initialize logger", zap.Error(err))
 	}
 	defer logger.Sync()
+
+	// Log startup configuration (excluding sensitive data)
+	logger.Info("Starting server with configuration",
+		zap.String("host", config.Server.Host),
+		zap.Int("port", config.Server.Port),
+		zap.String("mongodb_database", config.MongoDB.Database),
+		zap.String("log_level", config.Logging.Level),
+		zap.Bool("tls_enabled", config.Server.TLS.Enabled))
 
 	// Connect to MongoDB
 	if err := mongodb.Connect(config.MongoDB.URI); err != nil {
@@ -181,7 +281,7 @@ func main() {
 	e := echo.New()
 
 	// Initialize rate limiter
-	rateLimiter := middleware.NewRateLimiter(
+	rateLimiter := customMiddleware.NewRateLimiter(
 		config.Security.RateLimiting.MaxAttempts,
 		time.Duration(config.Security.RateLimiting.WindowSeconds)*time.Second,
 		time.Duration(config.Security.RateLimiting.BlockoutMinutes)*time.Minute,
