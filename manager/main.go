@@ -1,12 +1,14 @@
 package main
 
 import (
-    "context"
-    "fmt"
-    "net/http"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
 	"time"
-    "os"
-    "os/signal"
 
     "github.com/joho/godotenv"
     "github.com/labstack/echo/v4"
@@ -119,8 +121,8 @@ func main() {
 		logger.Fatal("ADMIN_DEFAULT_PASSWORD must be set in configuration")
 	}
 
-// Initialize Logger
-if err := logger.Initialize(config.Logging.Level); err != nil {
+	// Initialize Logger
+	if err := logger.Initialize(config.Logging.Level); err != nil {
 		logger.Fatal("Failed to initialize logger", zap.Error(err))
 	}
 	defer logger.Sync()
@@ -259,6 +261,11 @@ if err := logger.Initialize(config.Logging.Level); err != nil {
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port)
+	server := &http.Server{
+		Addr:    addr,
+		Handler: e,
+	}
+
 	if config.Server.TLS.Enabled {
 		// Check if TLS cert and key files exist
 		if _, err := os.Stat(config.Server.TLS.CertFile); os.IsNotExist(err) {
@@ -266,6 +273,11 @@ if err := logger.Initialize(config.Logging.Level); err != nil {
 		}
 		if _, err := os.Stat(config.Server.TLS.KeyFile); os.IsNotExist(err) {
 			logger.Fatal("TLS key file not found", zap.String("path", config.Server.TLS.KeyFile))
+		}
+
+		// Configure TLS settings
+		if err := configureTLS(server, config); err != nil {
+			logger.Fatal("Error configuring TLS", zap.Error(err))
 		}
 
 		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
@@ -290,4 +302,97 @@ if err := logger.Initialize(config.Logging.Level); err != nil {
 			logger.Error("Failed to shutdown server gracefully", zap.Error(err))
 		}
 	}()
+}
+
+// configureTLS configures the TLS settings for the server.
+func configureTLS(server *http.Server, config *Config) error {
+	minVersion, err := parseTLSVersion(config.Server.TLS.MinVersion)
+	if err != nil {
+		return fmt.Errorf("invalid TLS version: %w", err)
+	}
+
+	cipherSuites, err := parseCipherSuites(config.Server.TLS.CipherSuites)
+	if err != nil {
+		return fmt.Errorf("invalid cipher suites: %w", err)
+	}
+
+	server.TLSConfig = &tls.Config{
+		MinVersion:               minVersion,
+		CipherSuites:            cipherSuites,
+		PreferServerCipherSuites: true,
+		CurvePreferences: []tls.CurveID{
+			tls.X25519,
+			tls.CurveP256,
+		},
+	}
+
+	return nil
+}
+
+// parseTLSVersion parses the TLS version string and returns the corresponding uint16 value.
+func parseTLSVersion(version string) (uint16, error) {
+	switch version {
+	case "1.0":
+		return tls.VersionTLS10, nil
+	case "1.1":
+		return tls.VersionTLS11, nil
+	case "1.2":
+		return tls.VersionTLS12, nil
+	case "1.3":
+		return tls.VersionTLS13, nil
+	default:
+		return 0, fmt.Errorf("unsupported TLS version: %s", version)
+	}
+}
+
+// parseCipherSuites parses the cipher suite strings and returns the corresponding uint16 values.
+func parseCipherSuites(cipherSuites []string) ([]uint16, error) {
+	var suites []uint16
+	for _, suite := range cipherSuites {
+		switch strings.TrimSpace(suite) {
+		case "TLS_RSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_RC4_128_SHA)
+		case "TLS_RSA_WITH_3DES_EDE_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA)
+		case "TLS_RSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_128_CBC_SHA)
+		case "TLS_RSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_256_CBC_SHA)
+		case "TLS_RSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_RSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_RSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_RC4_128_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_RC4_128_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_RC4_128_SHA)
+		case "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA)
+		case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA)
+		case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+		case "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+		case "TLS_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_CHACHA20_POLY1305_SHA256)
+		case "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+		case "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256":
+			suites = append(suites, tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256)
+		default:
+			return nil, fmt.Errorf("unsupported cipher suite: %s", suite)
+		}
+	}
+	return suites, nil
 }
