@@ -109,10 +109,10 @@ func CreateTask(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create task"})
 	}
 
-	response := echo.Map{
-		"task_id":   task.ID.Hex(),
-		"status":    "queued", // initial status
-		"timestamp": now,
+	response := models.TaskCreationResponse{
+		TaskID:    task.ID.Hex(),
+		Status:    "queued", // initial status
+		Timestamp: now,
 	}
 	return c.JSON(http.StatusOK, response)
 }
@@ -212,10 +212,10 @@ func CancelTask(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to cancel task"})
 	}
 
-	response := echo.Map{
-		"task_id": taskID,
-		"status":    "cancelled",
-		"timestamp": time.Now(),
+	response := models.TaskCancelResponse{
+		TaskID:    taskID,
+		Status:    "cancelled",
+		Timestamp: time.Now(),
 	}
 	return c.JSON(http.StatusOK, response)
 }
