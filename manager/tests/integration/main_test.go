@@ -15,6 +15,7 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	"github.com/whit3rabbit/beehive/manager/models"
 )
 
 var (
