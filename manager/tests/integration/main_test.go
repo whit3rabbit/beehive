@@ -15,7 +15,9 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
+	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -140,6 +142,118 @@ func TestAgentCRUD(t *testing.T) {
 	err = collection.FindOne(ctx, bson.M{"uuid": agent.UUID}).Decode(&foundAgent)
 	assert.Error(t, err, "Should not find deleted agent")
 	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
+}
+
+func TestRoleCRUD(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("roles")
+
+	// Create role
+	role := models.Role{
+		Name:         "test-role",
+		Description:  "Test role description",
+		Applications: []string{"app1", "app2"},
+		DefaultTasks: []string{"task1", "task2"},
+		CreatedAt:    time.Now(),
+	}
+
+	result, err := collection.InsertOne(ctx, role)
+	assert.NoError(t, err, "Should insert role without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Read role
+	var foundRole models.Role
+	err = collection.FindOne(ctx, bson.M{"name": role.Name}).Decode(&foundRole)
+	assert.NoError(t, err, "Should find role without error")
+	assert.Equal(t, role.Description, foundRole.Description, "Should match description")
+
+	// Update role
+	update := bson.M{"$set": bson.M{"description": "Updated description"}}
+	_, err = collection.UpdateOne(ctx, bson.M{"name": role.Name}, update)
+	assert.NoError(t, err, "Should update role without error")
+
+	// Verify update
+	err = collection.FindOne(ctx, bson.M{"name": role.Name}).Decode(&foundRole)
+	assert.NoError(t, err, "Should find updated role")
+	assert.Equal(t, "Updated description", foundRole.Description, "Should have updated description")
+
+	// Delete role
+	_, err = collection.DeleteOne(ctx, bson.M{"name": role.Name})
+	assert.NoError(t, err, "Should delete role without error")
+
+	// Verify deletion
+	err = collection.FindOne(ctx, bson.M{"name": role.Name}).Decode(&foundRole)
+	assert.Error(t, err, "Should not find deleted role")
+	assert.Equal(t, mongo.ErrNoDocuments, err, "Should return no documents error")
+}
+
+func TestAdminAuth(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := mongoClient.Database(testConfig.MongoDB.Database)
+	collection := db.Collection("admins")
+
+	// Create admin with hashed password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("test-password"), bcrypt.DefaultCost)
+	assert.NoError(t, err, "Should hash password without error")
+
+	admin := models.Admin{
+		Username:  "test-admin",
+		Password:  string(hashedPassword),
+		Email:     "test@example.com",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	result, err := collection.InsertOne(ctx, admin)
+	assert.NoError(t, err, "Should insert admin without error")
+	assert.NotNil(t, result.InsertedID, "Should have an inserted ID")
+
+	// Verify password
+	var foundAdmin models.Admin
+	err = collection.FindOne(ctx, bson.M{"username": admin.Username}).Decode(&foundAdmin)
+	assert.NoError(t, err, "Should find admin without error")
+
+	err = bcrypt.CompareHashAndPassword([]byte(foundAdmin.Password), []byte("test-password"))
+	assert.NoError(t, err, "Should verify password without error")
+
+	err = bcrypt.CompareHashAndPassword([]byte(foundAdmin.Password), []byte("wrong-password"))
+	assert.Error(t, err, "Should fail with wrong password")
+
+	// Cleanup
+	_, err = collection.DeleteOne(ctx, bson.M{"username": admin.Username})
+	assert.NoError(t, err, "Should delete admin without error")
+}
+
+func TestRateLimiter(t *testing.T) {
+	limiter := customMiddleware.NewRateLimiter(2, time.Second*2, time.Second*4)
+
+	// First attempt should succeed
+	allowed, waitTime := limiter.CheckLimit("test-user")
+	assert.True(t, allowed, "First attempt should be allowed")
+	assert.Zero(t, waitTime, "Wait time should be zero")
+
+	// Second attempt should succeed
+	allowed, waitTime = limiter.CheckLimit("test-user")
+	assert.True(t, allowed, "Second attempt should be allowed")
+	assert.Zero(t, waitTime, "Wait time should be zero")
+
+	// Third attempt should fail
+	allowed, waitTime = limiter.CheckLimit("test-user")
+	assert.False(t, allowed, "Third attempt should be blocked")
+	assert.NotZero(t, waitTime, "Wait time should be non-zero")
+
+	// Wait for window to expire
+	time.Sleep(time.Second * 2)
+
+	// Should be allowed again
+	allowed, waitTime = limiter.CheckLimit("test-user")
+	assert.True(t, allowed, "Attempt after window expiry should be allowed")
+	assert.Zero(t, waitTime, "Wait time should be zero")
 }
 
 func TestTaskCRUD(t *testing.T) {
