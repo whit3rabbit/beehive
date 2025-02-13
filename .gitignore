@@ -24,6 +24,7 @@ go.work.sum
 # env file
 .env
 .aider*
+output.txt
 
 # Binary file
 manager.exe
