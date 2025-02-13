@@ -68,7 +68,7 @@ func TestCreateCollection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db := mongodb.Client.Database(testConfig.MongoDB.Database)
+	db := mongoClient.Database(testConfig.MongoDB.Database)
 	
 	// Test creating a collection
 	err := db.CreateCollection(ctx, "test_collection")
