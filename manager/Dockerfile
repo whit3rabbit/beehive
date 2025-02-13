@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.22-alpine AS builder
 
 # Install required packages for building
 RUN apk add --no-cache gcc musl-dev make
@@ -7,8 +7,8 @@ RUN apk add --no-cache gcc musl-dev make
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files from manager subdirectory
-COPY manager/go.mod manager/go.sum ./
+# Copy go mod files
+COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download && go mod verify

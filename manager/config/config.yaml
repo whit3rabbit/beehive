@@ -1,7 +1,7 @@
 server:
   host: "0.0.0.0"
   port: 8080
-  static_dir: "../frontend/build"  # Directory for serving the React app
+  static_dir: "./frontend/build"  # Directory for serving the React app
   tls:
     enabled: true
     cert_file: "certs/server.crt"   # Path to your TLS certificate
