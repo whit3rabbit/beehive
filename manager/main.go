@@ -203,6 +203,7 @@ func main() {
 	// Agent endpoints
 	agentRoutes.POST("/agent/register", handlers.RegisterAgent)
 	agentRoutes.POST("/agent/heartbeat", handlers.AgentHeartbeat)
+	agentRoutes.GET("/agent/:uuid/summary", handlers.GetAgentSummary)
 	agentRoutes.GET("/agent/:agent_id/tasks", handlers.ListAgentTasks)
 	agentRoutes.POST("/task/create", handlers.CreateTask, customMiddleware.RequestValidationMiddleware)
 	agentRoutes.GET("/task/status/:task_id", handlers.GetTaskStatus)

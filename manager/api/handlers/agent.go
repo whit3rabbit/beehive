@@ -134,6 +134,40 @@ func generateSecureToken() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
+// GetAgentSummary retrieves a summary of a specific agent by UUID.
+// @Summary Retrieves a summary of a specific agent
+// @Description Gets the summary details of an agent based on its UUID.
+// @Tags agent
+// @Accept json
+// @Produce json
+// @Param uuid path string true "Agent UUID"
+// @Success 200 {object} models.AgentSummary
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /agent/{uuid}/summary [get]
+func GetAgentSummary(c echo.Context) error {
+	agentUUID := c.Param("uuid")
+	if agentUUID == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Missing agent UUID"})
+	}
+
+	dbName := c.Get("mongodb_database").(string)
+	collection := mongodb.Client.Database(dbName).Collection("agents")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var agent models.Agent
+	err := collection.FindOne(ctx, bson.M{"uuid": agentUUID}).Decode(&agent)
+	if err != nil {
+		logger.Error("Agent not found", zap.Error(err), zap.String("agent_uuid", agentUUID))
+		return c.JSON(http.StatusNotFound, ErrorResponse{Error: "Agent not found"})
+	}
+
+	summary := agent.ToSummary()
+	return c.JSON(http.StatusOK, summary)
+}
+
 // AgentHeartbeat handles POST /agent/heartbeat.
 // @Summary Updates the heartbeat of an agent
 // @Description Updates the last_seen timestamp of an agent.
