@@ -32,7 +32,7 @@ const MaxTaskOutputSize = 1024 * 1024 // 1MB
 // @Accept json
 // @Produce json
 // @Param task body taskRequest true "Task object to be created"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} models.TaskCreationResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /task/create [post]
