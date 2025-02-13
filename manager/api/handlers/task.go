@@ -17,8 +17,8 @@ import (
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
 )
 
-// taskRequest defines the structure for task creation requests.
-type taskRequest struct {
+// TaskRequest defines the structure for task creation requests.
+type TaskRequest struct {
 	Task models.Task `json:"task" validate:"required"`
 }
 
