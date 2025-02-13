@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -71,6 +72,7 @@ func TestCreateCollection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// Switch to test database
 	db := mongoClient.Database(testConfig.MongoDB.Database)
 	
 	// Test creating a collection
@@ -78,7 +80,8 @@ func TestCreateCollection(t *testing.T) {
 	assert.NoError(t, err, "Should create collection without error")
 
 	// Verify collection exists
-	collections, err := db.ListCollectionNames(ctx, nil)
+	filter := bson.D{}
+	collections, err := db.ListCollectionNames(ctx, filter)
 	assert.NoError(t, err, "Should list collections without error")
 	assert.Contains(t, collections, "test_collection", "Should contain the created collection")
 
