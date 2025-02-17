@@ -1,0 +1,56 @@
+# Build stage
+FROM golang:1.24-alpine
+
+# Install required packages for building
+RUN apk add --no-cache gcc musl-dev make git wget
+
+# Set working directory
+WORKDIR /app
+
+# Copy all files
+COPY . .
+
+# Create user
+RUN adduser -D -g '' appuser
+
+# Create all required directories with explicit permissions
+RUN mkdir -p \
+    /app/certs \
+    /app/logs \
+    /app/tmp \
+    /app/data \
+    /app/config \
+    /app/bin && \
+    chown -R appuser:appuser /app
+
+# Build the application using make
+RUN make build
+
+# Copy and set up entrypoint script
+COPY docker/docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Create script to disable transparent hugepages
+RUN echo '#!/bin/sh\n\
+if [ -f /sys/kernel/mm/transparent_hugepage/enabled ]; then\n\
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled\n\
+fi\n\
+if [ -f /sys/kernel/mm/transparent_hugepage/defrag ]; then\n\
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag\n\
+fi' > /app/disable-transparent-hugepages.sh && \
+    chmod +x /app/disable-transparent-hugepages.sh
+
+# Set permissions
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Create a healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

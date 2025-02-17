@@ -59,29 +59,22 @@ export function useLogout() {
 
 // Agent hooks
 export function useAgents(filters?: AgentFilters) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const handleAgentUpdate = (updatedAgent: Agent) => {
-      queryClient.setQueryData<Agent[]>(['agents'], (old) => 
-        old?.map(agent => agent.uuid === updatedAgent.uuid ? updatedAgent : agent) ?? [updatedAgent]
-      );
-    };
-
-    socket.on('agent:update', handleAgentUpdate);
-    return () => {
-      socket.off('agent:update', handleAgentUpdate);
-    };
-  }, [queryClient]);
-
-  return useQuery({
-    queryKey: ['agents', filters],
-    queryFn: async () => {
-      const { data } = await api.get<Agent[]>('/agents', { params: filters });
-      return data;
-    },
-  });
-}
+    return useQuery({
+      queryKey: ['agents', filters],
+      queryFn: async () => {
+        try {
+          const { data } = await api.get<Agent[]>('/agents', { params: filters });
+          return data;
+        } catch (error) {
+          // Log to error reporting service
+          console.error('Failed to fetch agents:', error);
+          throw error;
+        }
+      },
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    });
+  }
 
 export function useAgent(uuid: string) {
   return useQuery({

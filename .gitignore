@@ -27,3 +27,7 @@ output.txt
 
 # Binary file
 manager.exe
+
+# mongodb docker
+manager/data
+tmp/

@@ -1,34 +1,49 @@
 server:
-  host: "0.0.0.0"
-  port: 8080
-  static_dir: "./frontend/build"  # Directory for serving the React app
+  host: ${SERVER_HOST}
+  port: ${SERVER_PORT}
   tls:
-    enabled: true
-    cert_file: "certs/server.crt"   # Path to your TLS certificate
-    key_file: "certs/server.key"    # Path to your TLS key
+    enabled: ${TLS_ENABLED}
+    cert_file: ${TLS_CERT_FILE}
+    key_file: ${TLS_KEY_FILE}
+    min_version: "1.2"
+    cipher_suites:
+      - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+      - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+      - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+      - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+      - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"
+      - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
 
 mongodb:
-  uri: "${MONGODB_URI}"
-  database: "manager_db"
-  root_username: "${MONGO_ROOT_USERNAME}"
-  root_password: "${MONGO_ROOT_PASSWORD}"
+  host: ${MONGODB_HOST}
+  port: ${MONGODB_PORT}
+  user: ${MONGODB_USER}
+  pass: ${MONGODB_PASSWORD}
+  database: ${MONGODB_DATABASE}
+  # If MONGODB_URI is set, it will override the individual settings
+  uri: ${MONGODB_URI:}
 
 auth:
-  # Sensitive values are expected to come from environment variables.
-  jwt_secret: "${JWT_SECRET}"
+  jwt_secret: ${JWT_SECRET}
   token_expiration_hours: 24
-  api_key: "${API_KEY}"
-  api_secret: "${API_SECRET}"
+  api_key: ${API_KEY}
+  api_secret: ${API_SECRET}
 
 admin:
-  default_username: "admin"
-  # For security, store the hashed password in your .env file.
-  default_password: "${ADMIN_DEFAULT_PASSWORD}"
+  username: ${ADMIN_USERNAME}
+  password: ${ADMIN_PASSWORD}
 
 logging:
-  level: "info"
+  level: ${LOG_LEVEL}
 
-rate_limiter:
-  max_attempts: 5
-  window_seconds: 60
-  blockout_minutes: 30
+security:
+  password_policy:
+    min_length: 8
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special: true
+  rate_limiting:
+    max_attempts: 5
+    window_seconds: 300
+    blockout_minutes: 15
