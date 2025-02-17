@@ -29,5 +29,6 @@ output.txt
 manager.exe
 
 # mongodb docker
+manager/docker/docker/*
 manager/data
 tmp/
