@@ -24,11 +24,10 @@ go.work.sum
 # some local files
 .aider*
 output.txt
+.env
 
 # Binary file
 manager.exe
 
 # mongodb docker
-manager/docker/docker/*
-manager/data
-tmp/
+manager/mongodb_data*
