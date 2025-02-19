@@ -99,6 +99,69 @@ services:
       retries: 6 # 6 × 10s = 60s total before unhealthy
       start_period: 30s # avoid early failures
 
+  manager:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      container_name: beehive-manager
+      env_file: .env
+      environment:
+        # MongoDB configuration
+        - MONGODB_HOST=mongodb
+        - MONGODB_PORT=27017
+        - MONGODB_USER=${MONGODB_USER}
+        - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+        - MONGODB_DATABASE=${MONGODB_DATABASE}
+        - MONGODB_URI=mongodb://manager:${MONGODB_PASSWORD}@mongodb:27017/${MONGODB_DATABASE}?tls=true&tlsCAFile=/certs/ca.crt
+        
+        # Server configuration
+        - SERVER_HOST=0.0.0.0
+        - SERVER_PORT=8080
+        
+        # TLS configuration
+        - TLS_ENABLED=true
+        - TLS_CERT_FILE=/certs/echo.pem
+        - TLS_KEY_FILE=/certs/echo.pem
+        
+        # Admin user configuration - match config.yaml names
+        - ADMIN_USERNAME=${ADMIN_DEFAULT_USERNAME}
+        - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
+        
+        # Authentication configuration
+        - JWT_SECRET=${JWT_SECRET}
+        - API_KEY=${API_KEY}
+        - API_SECRET=${API_SECRET}
+        
+        # Logging
+        - LOG_LEVEL=${LOG_LEVEL:-info}
+      ports:
+        - "8080:8080"
+      volumes:
+        - ./certs:/certs:ro
+        - ./config:/app/config:ro
+      depends_on:
+        mongodb:
+          condition: service_healthy
+      networks:
+        - beehive-network
+      restart: unless-stopped
+
+  nginx:
+    image: nginx:latest
+    container_name: beehive-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend/build:/usr/share/nginx/html:ro  # Example
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - manager
+    networks:
+      - beehive-network
+
 networks:
   beehive-network:
     driver: bridge
