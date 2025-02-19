@@ -21,7 +21,7 @@ mongodb:
   pass: ${MONGODB_PASSWORD}
   database: ${MONGODB_DATABASE}
   # If MONGODB_URI is set, it will override the individual settings
-  uri: ${MONGODB_URI:}
+  uri: ${MONGODB_URI}
 
 auth:
   jwt_secret: ${JWT_SECRET}
@@ -30,8 +30,8 @@ auth:
   api_secret: ${API_SECRET}
 
 admin:
-  username: ${ADMIN_USERNAME}
-  password: ${ADMIN_PASSWORD}
+  default_username: ${ADMIN_USERNAME}
+  default_password: ${ADMIN_DEFAULT_PASSWORD}
 
 logging:
   level: ${LOG_LEVEL}

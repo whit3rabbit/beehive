@@ -1,6 +1,7 @@
 name: beehive-test-env
+
 services:
-  cert-generator:
+  cert-generator:  # Renamed to be more descriptive
     image: alpine/openssl:latest
     container_name: beehive-cert-generator
     volumes:
@@ -10,20 +11,49 @@ services:
       -c '
       mkdir -p /certs &&
       cd /certs &&
+
+      # Check if ALL certificates and keyfile exist. Skip generation only if all are present.
+      if [ -f ca.key ] && [ -f mongodb.pem ] && [ -f echo.pem ] && [ -f mongodb.keyfile ]; then
+        echo "All certificates and keyfile exist. Skipping generation."
+        ls -l /certs
+        exit 0
+      fi
+
+      # Generate CA (shared for both MongoDB and Echo)
       openssl genrsa -out ca.key 2048 &&
-      openssl req -x509 -new -nodes -key ca.key -subj "/CN=MongoCA" -days 3650 -out ca.crt &&
+      openssl req -x509 -new -nodes -key ca.key -subj "/CN=BeehiveCA" -days 3650 -out ca.crt &&
+
+      # Generate MongoDB Certificates
       openssl genrsa -out mongodb.key 2048 &&
-      openssl req -new -key mongodb.key -subj "/CN=localhost" -out mongodb.csr &&
-      openssl x509 -req -in mongodb.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out mongodb.crt -days 365 &&
+      openssl req -new -key mongodb.key -subj "/CN=mongodb" -out mongodb.csr &&
+      echo "subjectAltName=DNS:mongodb,DNS:localhost,IP:127.0.0.1" > mongo_extfile.cnf &&
+      openssl x509 -req -in mongodb.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out mongodb.crt -days 365 -extfile mongo_extfile.cnf &&
       cat mongodb.crt mongodb.key > mongodb.pem &&
+
+      # Generate Echo Server Certificates
+      openssl genrsa -out echo.key 2048 &&
+      openssl req -new -key echo.key -subj "/CN=localhost" -out echo.csr &&
+      echo "subjectAltName=DNS:localhost,IP:127.0.0.1" > echo_extfile.cnf &&
+      openssl x509 -req -in echo.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out echo.crt -days 365 -extfile echo_extfile.cnf &&
+      cat echo.crt echo.key > echo.pem &&
+
+      # Generate MongoDB Keyfile (for internal replica set auth)
+      openssl rand -base64 756 > mongodb.keyfile &&
+      chmod 600 mongodb.keyfile &&
+      chown 999:999 mongodb.keyfile &&
+
+      # Permissions
       chmod 644 ca.crt &&
       chmod 600 ca.key &&
       chmod 644 mongodb.crt &&
       chmod 600 mongodb.key &&
       chmod 600 mongodb.pem &&
+      chmod 644 echo.crt &&
+      chmod 600 echo.key &&
+      chmod 600 echo.pem &&
       chown -R 999:999 /certs/* &&
-      echo "TLS certificates generated successfully" &&
-      ls -l
+      echo "TLS certificates and keyfile generated successfully" &&
+      ls -l /certs
       '
 
   mongodb:
@@ -36,8 +66,8 @@ services:
       - MONGO_INITDB_DATABASE=${MONGODB_DATABASE}
       - MONGODB_USER=${MONGODB_USER}
       - MONGODB_PASSWORD=${MONGODB_PASSWORD}
-      - ADMIN_USERNAME=${ADMIN_USERNAME}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_DEFAULT_USERNAME=${ADMIN_DEFAULT_USERNAME}
+      - ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     volumes:
@@ -46,14 +76,28 @@ services:
         target: /docker-entrypoint-initdb.d/mongo-init.js
         read_only: true
       - mongodb_data:/data/db
-      - ./certs:/certs
-    user: mongodb
-    command: mongod --auth --tlsMode requireTLS --tlsCertificateKeyFile /certs/mongodb.pem --tlsCAFile /certs/ca.crt
+      - ./certs:/certs:ro
+    command: >
+      bash -c "apt-get update && apt-get install -y apache2-utils &&
+      export ADMIN_DEFAULT_PASSWORD_HASH=$$(htpasswd -nbB admin ${ADMIN_DEFAULT_PASSWORD} | cut -d ':' -f 2) &&
+      echo 'Using hashed password: '$$ADMIN_DEFAULT_PASSWORD_HASH &&
+      exec docker-entrypoint.sh mongod --auth --tlsMode requireTLS --tlsCertificateKeyFile /certs/mongodb.pem --tlsCAFile /certs/ca.crt --tlsAllowConnectionsWithoutCertificates --bind_ip_all --keyFile /certs/mongodb.keyfile"
     depends_on:
       cert-generator:
         condition: service_completed_successfully
     networks:
       - beehive-network
+    healthcheck:
+      test: >
+        sh -c '
+        mongosh --tls --tlsCAFile /certs/ca.crt --tlsAllowInvalidHostnames --quiet \
+          -u "$${MONGO_INITDB_ROOT_USERNAME}" -p "$${MONGO_INITDB_ROOT_PASSWORD}" \
+          --eval "db.runCommand({ ping: 1 }).ok" | grep -q 1
+        '
+      interval: 10s
+      timeout: 8s
+      retries: 6 # 6 × 10s = 60s total before unhealthy
+      start_period: 30s # avoid early failures
 
 networks:
   beehive-network:

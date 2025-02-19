@@ -3,6 +3,7 @@ print('Starting MongoDB initialization script...');
 // Switch to admin database first
 db = db.getSiblingDB('admin');
 
+// MongoDB Docker uses MONGO_INITDB_ROOT_USERNAME and MONGO_INITDB_ROOT_PASSWORD for authentication
 print('Authenticating as root user...');
 db.auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD);
 
@@ -10,6 +11,7 @@ db.auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PA
 print('Switching to application database...');
 db = db.getSiblingDB(process.env.MONGO_INITDB_DATABASE);
 
+// Create application user (for the app) with the provided credentials
 print('Creating application user...');
 db.createUser({
     user: process.env.MONGODB_USER,
@@ -17,11 +19,12 @@ db.createUser({
     roles: [
         {
             role: 'readWrite',
-            db: process.env.MONGODB_DATABASE
+            db: process.env.MONGO_INITDB_DATABASE
         }
     ]
 });
 
+// Create necessary collections
 print('Creating collections...');
 db.createCollection('admins');
 db.createCollection('agents');
@@ -29,21 +32,24 @@ db.createCollection('roles');
 db.createCollection('tasks');
 db.createCollection('logs');
 
+// Create indexes
 print('Creating indexes...');
 db.admins.createIndex({ "username": 1 }, { unique: true });
 db.agents.createIndex({ "uuid": 1 }, { unique: true });
 db.agents.createIndex({ "api_key": 1 }, { unique: true });
 db.agents.createIndex({ "last_seen": 1 });
 
+// Insert default admin user using the pre-hashed password from environment variable
 print('Inserting default admin user...');
 db.admins.insertOne({
-    username: process.env.ADMIN_USERNAME,
-    password: "$2a$10$IbQS4S7WdXDrWSgr0u8TzOx2Ik/PQtZ4Y9tELpqQn3HAMjpx3Yt7C", // hashed password
+    username: process.env.ADMIN_DEFAULT_USERNAME,
+    password: process.env.ADMIN_DEFAULT_PASSWORD_HASH,
     created_at: new Date(),
     updated_at: new Date()
 });
 
 // Insert multiple roles
+print('Inserting roles...');
 const roles = [
     {
         name: "worker",
@@ -70,6 +76,7 @@ const roles = [
 db.roles.insertMany(roles);
 
 // Insert multiple agents
+print('Inserting agents...');
 const agents = [
     {
         uuid: "test-agent-001",
@@ -111,6 +118,7 @@ const agents = [
 db.agents.insertMany(agents);
 
 // Insert sample tasks
+print('Inserting tasks...');
 const tasks = [
     {
         agent_id: "test-agent-001",
@@ -169,6 +177,7 @@ const tasks = [
 db.tasks.insertMany(tasks);
 
 // Insert sample logs
+print('Inserting logs...');
 const logs = [
     {
         timestamp: new Date(),
@@ -206,8 +215,8 @@ print('MongoDB Test Environment Setup Complete:');
 print('----------------------------------------');
 print('Root Admin User:', db.runCommand({ connectionStatus: 1 }).authInfo.authenticatedUsers[0].user);
 print('Application Database:', db.getName());
-print('Application User:', 'manager');
-print('Collections Created:', db.getCollectionNames());
+print('Application User:', process.env.MONGODB_USER);
+print('Collections Created:', JSON.stringify(db.getCollectionNames()));
 
 // Use countDocuments() instead of count()
 async function getCollectionCounts() {
@@ -230,9 +239,9 @@ print('----------------------------------------');
 // Print sample data details
 print('\nSample Data Summary:');
 print('----------------------------------------');
-print('Roles:', db.roles.distinct('name'));
-print('Agent Statuses:', db.agents.distinct('status'));
-print('Task Types:', db.tasks.distinct('type'));
-print('Task Statuses:', db.tasks.distinct('status'));
-print('Log Statuses:', db.logs.distinct('status'));
+print('Roles:', JSON.stringify(db.roles.distinct('name')));
+print('Agent Statuses:', JSON.stringify(db.agents.distinct('status')));
+print('Task Types:', JSON.stringify(db.tasks.distinct('type')));
+print('Task Statuses:', JSON.stringify(db.tasks.distinct('status')));
+print('Log Statuses:', JSON.stringify(db.logs.distinct('status')));
 print('----------------------------------------');
