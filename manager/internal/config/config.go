@@ -18,49 +18,50 @@ type RateLimiterConfig struct {
 }
 
 type ServerConfig struct {
-    Host      string `yaml:"host"`
-    Port      int    `yaml:"port"`
-    StaticDir string `yaml:"static_dir"`
-    TLS       TLSConfig `yaml:"tls"`
+	Host             string    `yaml:"host"`
+	Port             int       `yaml:"port"`
+	StaticDir        string    `yaml:"static_dir"`
+	BehindReverseProxy bool      `yaml:"behind_reverse_proxy"` // Added field
+	TLS              TLSConfig `yaml:"tls"`
 }
 
 type TLSConfig struct {
-    Enabled      bool   `yaml:"enabled"`
-    CertFile     string `yaml:"cert_file"`
-    KeyFile      string `yaml:"key_file"`
-    MinVersion   string `yaml:"min_version"`
-    CipherSuites []string `yaml:"cipher_suites"`
+	Enabled      bool     `yaml:"enabled"`
+	CertFile     string   `yaml:"cert_file"`
+	KeyFile      string   `yaml:"key_file"`
+	MinVersion   string   `yaml:"min_version"`
+	CipherSuites []string `yaml:"cipher_suites"`
 }
 
 type MongoDBConfig struct {
-    URI      string `yaml:"uri"`
-    Database string `yaml:"database"`
-    Host     string `yaml:"host"`
-    Port     int    `yaml:"port"`
-    User     string `yaml:"user"`
-    Pass     string `yaml:"pass"`
+	URI      string `yaml:"uri"`
+	Database string `yaml:"database"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Pass     string `yaml:"pass"`
 }
 
 type AuthConfig struct {
-    JWTSecret            string `yaml:"jwt_secret"`
-    TokenExpirationHours int    `yaml:"token_expiration_hours"`
-    APIKey              string `yaml:"api_key"`
-    APISecret           string `yaml:"api_secret"`
+	JWTSecret            string `yaml:"jwt_secret"`
+	TokenExpirationHours int    `yaml:"token_expiration_hours"`
+	APIKey              string `yaml:"api_key"`
+	APISecret           string `yaml:"api_secret"`
 }
 
 type AdminConfig struct {
-    DefaultUsername string `yaml:"default_username"`
-    DefaultPassword string `yaml:"default_password"`
+	DefaultUsername string `yaml:"default_username"`
+	DefaultPassword string `yaml:"default_password"`
 }
 
 type LoggingConfig struct {
-    Level string `yaml:"level"`
+	Level string `yaml:"level"`
 }
 
 // Config holds all configuration settings
 type Config struct {
-    Server   ServerConfig   `yaml:"server"`
-    Security struct {
+	Server   ServerConfig `yaml:"server"`
+	Security struct {
 		PasswordPolicy struct {
 			MinLength        int  `yaml:"min_length"`
 			RequireUppercase bool `yaml:"require_uppercase"`
@@ -70,26 +71,27 @@ type Config struct {
 		} `yaml:"password_policy"`
 		RateLimiting RateLimiterConfig `yaml:"rate_limiting"`
 	} `yaml:"security"`
-    MongoDB  MongoDBConfig  `yaml:"mongodb"`
-    Auth     AuthConfig     `yaml:"auth"`
-    Admin    AdminConfig    `yaml:"admin"`
-    Logging  LoggingConfig  `yaml:"logging"`
+	MongoDB MongoDBConfig `yaml:"mongodb"`
+	Auth    AuthConfig    `yaml:"auth"`
+	Admin   AdminConfig   `yaml:"admin"`
+	Logging LoggingConfig `yaml:"logging"`
 }
 
 // CLIFlags holds all command line arguments
 type CLIFlags struct {
-	ConfigFile     string
-	ServerHost     string
-	ServerPort     int
-	MongoURI       string
-	MongoDatabase  string
-	LogLevel       string
-	TLSEnabled     bool
-	TLSCertFile    string
-	TLSKeyFile     string
-	JWTSecret      string
-	AdminUsername  string
-	AdminPassword  string
+	ConfigFile         string
+	ServerHost         string
+	ServerPort         int
+	BehindReverseProxy bool // Added flag
+	MongoURI           string
+	MongoDatabase      string
+	LogLevel           string
+	TLSEnabled         bool
+	TLSCertFile        string
+	TLSKeyFile         string
+	JWTSecret          string
+	AdminUsername      string
+	AdminPassword      string
 }
 
 // LoadConfig loads configuration from files and environment variables
@@ -132,6 +134,7 @@ func ParseFlags() *CLIFlags {
 	// Server settings
 	flag.StringVar(&flags.ServerHost, "host", "", "Server host address")
 	flag.IntVar(&flags.ServerPort, "port", 0, "Server port")
+	flag.BoolVar(&flags.BehindReverseProxy, "behind-reverse-proxy", false, "Is the server behind a reverse proxy?") // Added flag
 
 	// MongoDB settings
 	flag.StringVar(&flags.MongoURI, "mongo-uri", "", "MongoDB URI")
@@ -162,6 +165,9 @@ func MergeConfig(config *Config, flags *CLIFlags) {
 	}
 	if flags.ServerPort != 0 {
 		config.Server.Port = flags.ServerPort
+	}
+	if flags.BehindReverseProxy { // Check for flag, no need to check if it's empty
+		config.Server.BehindReverseProxy = flags.BehindReverseProxy
 	}
 	if flags.MongoURI != "" {
 		config.MongoDB.URI = flags.MongoURI
@@ -203,6 +209,9 @@ func setConfigDefaults(config *Config) {
 	if config.Server.StaticDir == "" {
 		config.Server.StaticDir = "./frontend/build"
 	}
+	// Default BehindReverseProxy to false if not explicitly set.
+	//  No explicit default needed; Go's zero value for bool is false.
+
 	if config.Auth.TokenExpirationHours == 0 {
 		config.Auth.TokenExpirationHours = 24
 	}
@@ -235,13 +244,13 @@ func validateConfig(config *Config) error {
 		errors = append(errors, "MongoDB database name is required")
 	}
 
-	// Validate TLS configuration if enabled
-	if config.Server.TLS.Enabled {
+	// Validate TLS configuration if enabled *and* not behind a reverse proxy
+	if config.Server.TLS.Enabled && !config.Server.BehindReverseProxy {
 		if config.Server.TLS.CertFile == "" {
-			errors = append(errors, "TLS certificate file is required when TLS is enabled")
+			errors = append(errors, "TLS certificate file is required when TLS is enabled and not behind a reverse proxy")
 		}
 		if config.Server.TLS.KeyFile == "" {
-			errors = append(errors, "TLS key file is required when TLS is enabled")
+			errors = append(errors, "TLS key file is required when TLS is enabled and not behind a reverse proxy")
 		}
 	}
 

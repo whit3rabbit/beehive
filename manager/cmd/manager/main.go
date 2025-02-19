@@ -18,34 +18,34 @@ import (
 
 	"github.com/whit3rabbit/beehive/manager/api/admin"
 	"github.com/whit3rabbit/beehive/manager/api/handlers"
+	"github.com/whit3rabbit/beehive/manager/cmd/setup"
 	"github.com/whit3rabbit/beehive/manager/internal/config"
 	"github.com/whit3rabbit/beehive/manager/internal/logger"
 	"github.com/whit3rabbit/beehive/manager/internal/mongodb"
-	"github.com/whit3rabbit/beehive/manager/cmd/setup"
 	customMiddleware "github.com/whit3rabbit/beehive/manager/middleware"
 	"github.com/whit3rabbit/beehive/manager/migrations"
 	"github.com/whit3rabbit/beehive/manager/models"
 )
 
 func main() {
-    // Parse command line flags
-    flags := config.ParseFlags()
+	// Parse command line flags
+	flags := config.ParseFlags()
 
-    // Check if this is a setup command
-    if len(os.Args) > 1 && os.Args[1] == "setup" {
-        setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
-        skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
-        if err := setupCmd.Parse(os.Args[2:]); err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to parse setup flags: %v\n", err)
-            os.Exit(1)
-        }
+	// Check if this is a setup command
+	if len(os.Args) > 1 && os.Args[1] == "setup" {
+		setupCmd := flag.NewFlagSet("setup", flag.ExitOnError)
+		skipPrompts := setupCmd.Bool("skip", false, "Skip prompts and generate random values")
+		if err := setupCmd.Parse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse setup flags: %v\n", err)
+			os.Exit(1)
+		}
 
-        if err := setup.RunSetup(*skipPrompts); err != nil {
-            fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
-            os.Exit(1)
-        }
-        return
-    }
+		if err := setup.RunSetup(*skipPrompts); err != nil {
+			fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// Load configuration
 	cfg, err := config.LoadConfig(flags.ConfigFile)
@@ -68,7 +68,8 @@ func main() {
 		zap.Int("port", cfg.Server.Port),
 		zap.String("mongodb_database", cfg.MongoDB.Database),
 		zap.String("log_level", cfg.Logging.Level),
-		zap.Bool("tls_enabled", cfg.Server.TLS.Enabled))
+		zap.Bool("tls_enabled", cfg.Server.TLS.Enabled),
+		zap.Bool("behind_reverse_proxy", cfg.Server.BehindReverseProxy))
 
 	// Connect to MongoDB
 	if err := mongodb.Connect(cfg.MongoDB.URI); err != nil {
@@ -97,6 +98,7 @@ func main() {
 
 	// Create Echo instance and set up middleware
 	e := echo.New()
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler // Set Custom Error Handler
 
 	// Initialize rate limiter
 	rateLimiter := customMiddleware.NewRateLimiter(
@@ -154,6 +156,9 @@ func ensureAdminUser(db *mongo.Database, cfg *config.Config) {
 }
 
 func setupRoutes(e *echo.Echo, rateLimiter customMiddleware.RateLimiter) {
+	// Public login route (no auth middleware)
+	e.POST("/admin/login", admin.LoginHandler)
+
 	// Admin routes (JWT auth)
 	adminRoutes := e.Group("/admin")
 	adminRoutes.Use(customMiddleware.AdminAuthMiddleware(rateLimiter))
@@ -184,42 +189,57 @@ func startServer(e *echo.Echo, cfg *config.Config) {
 		Handler: e,
 	}
 
-	if cfg.Server.TLS.Enabled {
-		// Check if TLS cert and key files exist
-		if _, err := os.Stat(cfg.Server.TLS.CertFile); os.IsNotExist(err) {
-			logger.Fatal("TLS certificate file not found", zap.String("path", cfg.Server.TLS.CertFile))
-		}
-		if _, err := os.Stat(cfg.Server.TLS.KeyFile); os.IsNotExist(err) {
-			logger.Fatal("TLS key file not found", zap.String("path", cfg.Server.TLS.KeyFile))
-		}
+	// Use TLS only if NOT behind a reverse proxy.
+	if !cfg.Server.BehindReverseProxy {
+		if cfg.Server.TLS.Enabled {
+			// Check if TLS cert and key files exist
+			if _, err := os.Stat(cfg.Server.TLS.CertFile); os.IsNotExist(err) {
+				logger.Fatal("TLS certificate file not found", zap.String("path", cfg.Server.TLS.CertFile))
+			}
+			if _, err := os.Stat(cfg.Server.TLS.KeyFile); os.IsNotExist(err) {
+				logger.Fatal("TLS key file not found", zap.String("path", cfg.Server.TLS.KeyFile))
+			}
 
-		// Configure TLS settings
-		if err := configureTLS(server, cfg); err != nil {
-			logger.Fatal("Error configuring TLS", zap.Error(err))
-		}
+			// Configure TLS settings
+			if err := configureTLS(server, cfg); err != nil {
+				logger.Fatal("Error configuring TLS", zap.Error(err))
+			}
 
-		logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
-		if err := e.StartTLS(addr, cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile); err != nil {
-			logger.Fatal("Error starting TLS server", zap.Error(err))
+			logger.Info("Starting server with TLS", zap.String("address", "https://"+addr))
+			go func() { // Run in a goroutine to handle shutdown
+				if err := e.StartTLS(addr, cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+					logger.Fatal("Error starting TLS server", zap.Error(err))
+				}
+			}()
+		} else {
+			logger.Info("Starting server without TLS", zap.String("address", "http://"+addr))
+			go func() { // Run in a goroutine
+				if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+					logger.Fatal("Error starting server", zap.Error(err))
+				}
+			}()
 		}
 	} else {
-		logger.Info("Starting server", zap.String("address", "http://"+addr))
-		if err := e.Start(addr); err != nil {
-			logger.Fatal("Error starting server", zap.Error(err))
-		}
+		// Behind a reverse proxy, so always start without TLS.
+		logger.Info("Starting server behind reverse proxy (no TLS)", zap.String("address", "http://"+addr))
+		go func() { // Run in a goroutine
+			if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+				logger.Fatal("Error starting server", zap.Error(err))
+			}
+		}()
 	}
 
 	// Add graceful shutdown handling
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := e.Shutdown(ctx); err != nil {
-			logger.Error("Failed to shutdown server gracefully", zap.Error(err))
-		}
-	}()
+	<-c // Block until a signal is received
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := e.Shutdown(ctx); err != nil {
+		logger.Error("Failed to shutdown server gracefully", zap.Error(err))
+	}
+	logger.Info("Server shutdown complete") // Add a log for shutdown
 }
 
 func configureTLS(server *http.Server, cfg *config.Config) error {

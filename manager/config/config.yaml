@@ -1,6 +1,8 @@
 server:
   host: ${SERVER_HOST}
   port: ${SERVER_PORT}
+  static_dir: "./frontend/build"
+  behind_reverse_proxy: true
   tls:
     enabled: ${TLS_ENABLED}
     cert_file: ${TLS_CERT_FILE}
